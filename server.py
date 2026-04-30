@@ -613,8 +613,7 @@ footer a{color:var(--muted);text-decoration:none}
 
 <!-- ── Header ──────────────────────────────────────────── -->
 <header class="hdr">
-  <div class="hdr-logo">DARKGEEK</div>
-  <div class="hdr-badge">P2P · ZERO UPLOAD</div>
+  <div class="hdr-logo">ShareAnywhere</div>
   <div class="hdr-spacer"></div>
   <div class="conn-dot" id="connDot"></div>
   <div class="conn-lbl" id="connLbl">Connecting...</div>
@@ -623,7 +622,7 @@ footer a{color:var(--muted);text-decoration:none}
 <!-- ── Landing / Hero ───────────────────────────────────── -->
 <div id="heroPage">
 <section class="hero">
-  <div class="hero-badge">⚡ WebRTC Direct Transfer</div>
+  <div class="hero-badge">⚡File Transfer Portal⚡</div>
 
   <h1 class="hero-title">
     <span class="g1">Blazing Fast</span><br>
@@ -631,7 +630,7 @@ footer a{color:var(--muted);text-decoration:none}
   </h1>
 
   <p class="hero-sub">
-    Transfer files directly between devices — <strong>no upload to server</strong>.<br>
+    Transfer files directly between devices — <strong>Not Storing Your data</strong>.<br>
     Up to <strong>5 GB</strong> on WiFi, <strong>500 MB</strong> over Internet.
   </p>
 
