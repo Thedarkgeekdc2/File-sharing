@@ -1,0 +1,1097 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1">
+<title>ShareAnywhere — P2P Share & Chat</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.7.5/socket.io.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+<script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#07071a;--sur:#0f0f2e;--card:#13133a;--bd:#252560;--bd2:#1e1e50;
+  --cyan:#00c8f0;--pur:#a066ff;--grn:#00d98a;--red:#ff4d6d;--amb:#ffbb33;
+  --txt:#eeeeff;--sub:#8b8bbc;
+  --g1:linear-gradient(90deg,var(--cyan),var(--pur));
+}
+html{height:100%;scroll-behavior:smooth}
+body{min-height:100vh;font-family:'Segoe UI',system-ui,sans-serif;background:var(--bg);color:var(--txt);
+  background-image:radial-gradient(ellipse 70% 50% at 20% 0%,rgba(0,200,240,.06),transparent),
+  radial-gradient(ellipse 60% 40% at 80% 100%,rgba(160,102,255,.06),transparent)}
+button,input,textarea{font:inherit;cursor:pointer}
+input,textarea{cursor:text}
+img{max-width:100%;display:block}
+.wrap{max-width:560px;margin:0 auto;padding:0 16px}
+.page{min-height:100vh;display:flex;flex-direction:column}
+.hidden{display:none!important}
+::-webkit-scrollbar{width:4px}::-webkit-scrollbar-track{background:transparent}::-webkit-scrollbar-thumb{background:var(--bd2);border-radius:4px}
+
+/* HEADER */
+.hdr{display:flex;align-items:center;gap:10px;padding:14px 0;border-bottom:1px solid var(--bd);flex-shrink:0}
+.logo{font-size:1.05rem;font-weight:900;letter-spacing:1px;background:var(--g1);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text}
+.hdr-back{border:0;background:none;color:var(--sub);padding:6px 8px;border-radius:8px;font-size:.88rem;font-weight:700;transition:color .2s}
+.hdr-back:hover{color:var(--txt)}
+.hdr-sp{flex:1}
+.dot{width:9px;height:9px;border-radius:50%;background:var(--sub);flex-shrink:0;transition:.4s}
+.dot.on{background:var(--grn);box-shadow:0 0 8px var(--grn)}
+
+/* FOOTER */
+.ftr{padding:18px 0 24px;text-align:center;color:var(--sub);font-size:.71rem;line-height:1.7;border-top:1px solid var(--bd);margin-top:auto}
+.ftr strong{color:var(--txt)}
+.ftr-logo{font-weight:900;letter-spacing:1.5px;background:var(--g1);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text}
+
+/* OVERLAY / MODAL */
+.overlay{position:fixed;inset:0;background:rgba(3,5,16,.8);backdrop-filter:blur(8px);z-index:100;display:flex;align-items:center;justify-content:center;padding:18px}
+.modal{width:min(440px,100%);background:var(--card);border:1px solid var(--bd);border-radius:20px;padding:26px 22px}
+.modal-title{font-size:1.2rem;font-weight:900;margin-bottom:8px}
+.modal-sub{font-size:.82rem;color:var(--sub);line-height:1.55;margin-bottom:18px}
+
+/* HERO */
+.hero{padding:38px 0 24px;text-align:center;flex:1}
+.hero-ico{font-size:3.2rem;margin-bottom:12px;line-height:1}
+.h-title{font-size:2rem;font-weight:900;line-height:1.1;margin-bottom:10px}
+.h-title .hl{background:var(--g1);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text}
+.h-sub{color:var(--sub);font-size:.92rem;line-height:1.6;margin-bottom:18px}
+.badge{display:inline-flex;align-items:center;gap:8px;padding:8px 16px;border-radius:40px;background:rgba(0,217,138,.08);border:1px solid rgba(0,217,138,.18);color:var(--grn);font-size:.78rem;font-weight:700;margin-bottom:22px}
+.nchip{display:inline-flex;align-items:center;gap:7px;padding:7px 14px;border-radius:999px;background:rgba(68,136,255,.1);border:1px solid rgba(68,136,255,.22);color:#bcd0ff;font-size:.73rem;font-weight:700;margin-bottom:20px}
+.nchip.wifi{background:rgba(0,217,138,.09);border-color:rgba(0,217,138,.22);color:var(--grn)}
+.nchip.inet{background:rgba(160,102,255,.09);border-color:rgba(160,102,255,.24);color:#d7c3ff}
+
+/* MODE BUTTONS */
+.mode-grid{display:flex;flex-direction:column;gap:12px;margin-bottom:20px}
+.mbtn{display:flex;align-items:center;gap:14px;padding:17px 18px;border-radius:18px;background:var(--card);border:1.5px solid var(--bd);color:var(--txt);width:100%;text-align:left;transition:.22s}
+.mbtn:hover{transform:translateY(-2px)}
+.mbtn.wifi:hover{border-color:var(--cyan)}
+.mbtn.inet:hover{border-color:var(--pur)}
+.mbtn-ico{width:48px;height:48px;border-radius:13px;display:flex;align-items:center;justify-content:center;font-size:1.45rem;flex:0 0 auto}
+.wifi .mbtn-ico{background:rgba(0,200,240,.12)}
+.inet .mbtn-ico{background:rgba(160,102,255,.12)}
+.mbtn-t{font-weight:800;font-size:.95rem;margin-bottom:3px}
+.wifi .mbtn-t{color:var(--cyan)}
+.inet .mbtn-t{color:var(--pur)}
+.mbtn-d{color:var(--sub);font-size:.77rem;line-height:1.4}
+.mbtn-arr{margin-left:auto;color:var(--sub);font-size:1.1rem}
+.specs{display:flex;flex-wrap:wrap;gap:7px;justify-content:center;margin-bottom:24px}
+.spec{font-size:.7rem;font-weight:700;color:var(--sub);background:var(--card);border:1px solid var(--bd);border-radius:20px;padding:4px 11px}
+
+/* SCREEN / STEPS */
+.screen{padding:20px 0 8px;flex:1}
+.steps{display:flex;gap:6px;justify-content:center;margin-bottom:20px}
+.stp{width:26px;height:4px;border-radius:8px;background:var(--bd)}
+.stp.on{background:var(--cyan)}
+.stitle{font-size:1.05rem;font-weight:900;margin-bottom:4px}
+.ssub{color:var(--sub);font-size:.81rem;line-height:1.5;margin-bottom:14px}
+
+/* CARDS */
+.card{background:var(--card);border:1px solid var(--bd);border-radius:16px;padding:16px}
+.lbl{font-size:.7rem;font-weight:800;color:var(--sub);letter-spacing:1px;margin-bottom:9px}
+.stack{display:flex;flex-direction:column;gap:8px}
+
+/* BUTTONS */
+.btn{width:100%;padding:14px 16px;border:0;border-radius:13px;font-size:.92rem;font-weight:800;display:flex;align-items:center;justify-content:center;gap:8px;transition:.22s}
+.btn:disabled{opacity:.38;cursor:not-allowed;transform:none!important}
+.btn.cy{background:linear-gradient(135deg,var(--cyan),#0099cc);color:#001a22}
+.btn.pu{background:linear-gradient(135deg,var(--pur),#7744cc);color:#fff}
+.btn.gh{background:var(--card);border:1px solid var(--bd);color:var(--sub)}
+.btn.gh:hover{border-color:var(--sub);color:var(--txt)}
+.btn.dn{background:rgba(255,77,109,.12);border:1.5px solid rgba(255,77,109,.3);color:var(--red)}
+.btn.cy:not(:disabled):hover,.btn.pu:not(:disabled):hover{transform:translateY(-2px)}
+.btn-sm{width:auto;padding:9px 14px;font-size:.8rem;font-weight:800;border:0;border-radius:10px;display:inline-flex;align-items:center;gap:6px;transition:.2s}
+
+/* DROPZONE */
+.drop{border:2px dashed var(--bd);border-radius:15px;padding:32px 18px;text-align:center;background:var(--card);transition:.2s;position:relative;overflow:hidden}
+.drop.over,.drop:hover{border-color:var(--cyan);background:rgba(0,200,240,.04)}
+.drop input{position:absolute;inset:0;opacity:0;cursor:pointer;width:100%;height:100%}
+.drop-ico{font-size:2.2rem;margin-bottom:8px}
+.drop-msg{font-size:.92rem;font-weight:800;margin-bottom:3px}
+.drop-hint{font-size:.74rem;color:var(--sub)}
+
+/* FILE LIST */
+.fl{display:flex;flex-direction:column;gap:7px;margin-top:11px}
+.fi{display:flex;align-items:center;gap:11px;background:var(--card);border:1px solid var(--bd);border-radius:11px;padding:10px 12px}
+.fi-ico{width:32px;height:32px;border-radius:9px;display:flex;align-items:center;justify-content:center;flex:0 0 auto;background:linear-gradient(135deg,var(--cyan),var(--pur));font-size:.9rem}
+.fi-inf{flex:1;min-width:0}
+.fi-nm{font-size:.84rem;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.fi-sz{font-size:.7rem;color:var(--sub);margin-top:2px}
+.fi-del{border:0;background:none;color:var(--sub);padding:5px;border-radius:7px;font-size:.9rem;transition:color .2s}
+.fi-del:hover{color:var(--red)}
+.fsummary{display:flex;justify-content:space-between;gap:10px;padding:9px 2px;font-size:.78rem;color:var(--sub)}
+.fsummary strong{color:var(--txt)}
+
+/* CODE */
+.code-card{text-align:center;padding:20px}
+.code{font-family:'Courier New',monospace;font-size:3.4rem;font-weight:900;letter-spacing:14px;color:var(--cyan);text-shadow:0 0 28px rgba(0,200,240,.4);padding-left:14px;line-height:1;margin:6px 0 16px}
+.copy-row{display:flex;gap:8px;justify-content:center;flex-wrap:wrap}
+.cbtn{border:1px solid var(--bd);background:var(--sur);color:var(--sub);padding:8px 13px;border-radius:10px;font-size:.78rem;font-weight:800;display:inline-flex;align-items:center;gap:6px;transition:.2s}
+.cbtn:hover{border-color:var(--sub);color:var(--txt)}
+
+/* QR */
+.qr-row{display:flex;gap:11px;flex-wrap:wrap;margin-bottom:12px}
+.qr-card{flex:1;min-width:160px;background:var(--card);border:1px solid var(--bd);border-radius:15px;padding:13px;text-align:center}
+.qr-card img{width:100%;max-width:200px;margin:0 auto;border-radius:9px;border:2px solid var(--bd)}
+.qr-lbl{font-size:.73rem;font-weight:800;color:var(--sub);margin-top:8px}
+.qr-hint{font-size:.65rem;color:var(--sub);margin-top:3px;line-height:1.4}
+
+/* PEERS / REQUESTS */
+.pitem{display:flex;align-items:flex-start;gap:11px;background:var(--card);border:1px solid var(--bd);border-radius:12px;padding:11px 13px}
+.pitem-av{width:34px;height:34px;border-radius:10px;flex:0 0 auto;background:linear-gradient(135deg,var(--cyan),var(--pur));display:flex;align-items:center;justify-content:center;font-weight:900;font-size:.9rem;color:#fff}
+.pitem-inf{flex:1;min-width:0}
+.pitem-nm{font-size:.84rem;font-weight:700;margin-bottom:2px}
+.pitem-st{font-size:.7rem;color:var(--sub)}
+.pitem-pct{font-size:.76rem;font-weight:800;color:var(--cyan);flex-shrink:0}
+.pbar-w{height:4px;border-radius:999px;background:rgba(255,255,255,.06);overflow:hidden;margin-top:7px}
+.pbar{height:100%;width:0;border-radius:999px;background:linear-gradient(90deg,var(--cyan),var(--pur));transition:width .25s}
+.req-btns{display:flex;gap:7px;margin-top:9px;flex-wrap:wrap}
+.rbtn{border:0;border-radius:9px;padding:7px 12px;font-weight:800;font-size:.78rem;cursor:pointer;transition:.2s}
+.accept{background:var(--pur);color:#fff}.accept:hover{opacity:.85}
+.reject{background:var(--red);color:#fff}.reject:hover{opacity:.85}
+
+/* NOTICES */
+.notice{display:flex;gap:9px;align-items:flex-start;border-radius:11px;padding:11px 13px;font-size:.81rem;line-height:1.5;margin:8px 0}
+.n-info{background:rgba(68,136,255,.1);border:1px solid rgba(68,136,255,.2);color:#b4c6ff}
+.n-ok{background:rgba(0,217,138,.1);border:1px solid rgba(0,217,138,.2);color:var(--grn)}
+.n-err{background:rgba(255,77,109,.1);border:1px solid rgba(255,77,109,.2);color:#ff9aae}
+.n-warn{background:rgba(255,187,51,.1);border:1px solid rgba(255,187,51,.2);color:var(--amb)}
+.n-ico{flex:0 0 auto}
+
+/* PROGRESS */
+.prog-card{background:var(--card);border:1px solid var(--bd);border-radius:15px;padding:16px;margin-top:10px}
+.prog-nm{font-size:.83rem;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.prog-meta{display:flex;justify-content:space-between;font-size:.7rem;color:var(--sub);margin-top:3px}
+.bw{height:5px;border-radius:999px;background:rgba(255,255,255,.06);overflow:hidden;margin-top:6px}
+.bw .b{height:100%;width:0;border-radius:999px;background:linear-gradient(90deg,var(--cyan),var(--pur));transition:width .2s}
+.ov{background:var(--card);border:1px solid var(--bd);border-radius:15px;padding:15px 17px;margin-top:11px}
+.ov-top{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:10px}
+.ov-t{font-size:.78rem;color:var(--sub);font-weight:800}
+.ov-pct{font-size:1.2rem;font-weight:900;color:var(--cyan)}
+.met-row{display:flex;flex-wrap:wrap;gap:7px;margin-top:11px}
+.met{padding:4px 10px;border:1px solid var(--bd);background:rgba(255,255,255,.04);border-radius:20px;font-size:.7rem;font-weight:800;color:var(--sub)}
+.met span{color:var(--txt)}
+
+/* OTP */
+.otp-wrap{display:flex;gap:9px;justify-content:center;margin:14px 0 18px}
+.otp{width:62px;height:68px;border:2px solid var(--bd);border-radius:13px;background:var(--card);color:var(--txt);font-size:1.8rem;font-weight:900;text-align:center;font-family:'Courier New',monospace;transition:border-color .2s;display:flex;align-items:center;justify-content:center;user-select:none}
+.otp.filled{border-color:var(--cyan)}
+.otp-hidden{position:absolute;opacity:0;pointer-events:none;width:1px;height:1px}
+
+/* CHAT / FEED */
+.feed{display:flex;flex-direction:column;gap:7px;max-height:220px;overflow-y:auto;padding-right:2px}
+.bubble{max-width:92%;padding:9px 12px;border-radius:13px;border:1px solid var(--bd);background:var(--card)}
+.bubble.me{align-self:flex-end;background:rgba(160,102,255,.12);border-color:rgba(160,102,255,.22)}
+.bubble .who{font-size:.68rem;color:var(--sub);margin-bottom:3px;font-weight:800;letter-spacing:.3px}
+.bubble .txt{font-size:.84rem;line-height:1.45;white-space:pre-wrap;word-break:break-word}
+.bubble .ts{font-size:.66rem;color:var(--sub);margin-top:5px}
+.bubble .lnk{margin-top:7px;display:flex;gap:7px;flex-wrap:wrap}
+.mini{border:1px solid var(--bd);background:var(--sur);color:var(--sub);border-radius:9px;padding:5px 9px;font-size:.73rem;font-weight:800;cursor:pointer;transition:.2s}
+.mini:hover{color:var(--txt);border-color:var(--sub)}
+
+/* INPUT */
+.inp{width:100%;background:var(--sur);color:var(--txt);border:1px solid var(--bd);border-radius:11px;padding:11px 12px;outline:none;transition:border-color .2s,box-shadow .2s}
+.inp:focus{border-color:var(--cyan);box-shadow:0 0 0 3px rgba(0,200,240,.1)}
+.ta{min-height:80px;resize:vertical}
+
+/* SCANNER */
+#qrReader{width:100%;max-width:320px;margin:0 auto}
+
+/* GRID-2 */
+.g2{display:grid;grid-template-columns:1fr;gap:11px}
+
+/* GAP UTILS */
+.gap4{height:4px}.gap8{height:8px}.gap10{height:10px}.gap12{height:12px}.gap16{height:16px}
+
+/* TOAST */
+#toasts{position:fixed;bottom:16px;left:50%;transform:translateX(-50%);display:flex;flex-direction:column;gap:7px;width:calc(100% - 32px);max-width:380px;z-index:200;pointer-events:none}
+.toast{background:var(--card);border:1px solid var(--bd);border-left:3px solid var(--cyan);border-radius:12px;padding:10px 14px;font-size:.82rem;font-weight:700;text-align:center;animation:tin .22s ease;pointer-events:auto;color:var(--txt)}
+@keyframes tin{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:translateY(0)}}
+
+/* RESPONSIVE */
+@media(min-width:540px){
+  .mode-grid{flex-direction:row}
+  .mbtn{flex-direction:column;gap:10px;text-align:center}
+  .mbtn-arr{display:none}
+  .g2{grid-template-columns:1fr 1fr}
+  .h-title{font-size:2.5rem}
+}
+@media(max-width:400px){
+  .code{font-size:2.8rem;letter-spacing:10px;padding-left:10px}
+  .otp{width:52px;height:62px;font-size:1.55rem}
+  .qr-card{min-width:100%}
+}
+</style>
+</head>
+<body>
+
+<!-- ── NAME OVERLAY ─────────────────────────────────────── -->
+<div id="nameOverlay" class="overlay hidden">
+  <div class="modal">
+    <div class="modal-title">👋 Enter your name</div>
+    <div class="modal-sub">This shows on the other device when you connect. Same names get auto-suffix: <b>Rahul → Rahul_a1</b></div>
+    <input id="nameInp" class="inp" placeholder="Your name" maxlength="32">
+    <div class="gap12"></div>
+    <button class="btn cy" onclick="saveName()">Continue →</button>
+  </div>
+</div>
+
+<!-- ══ HOME PAGE ════════════════════════════════════════════ -->
+<div id="pgHome" class="page">
+  <div class="wrap">
+    <div class="hdr">
+      <div class="logo">ShareAnywhere</div>
+      <div class="hdr-sp"></div>
+      <span id="myNameTag" style="font-size:.75rem;color:var(--sub);font-weight:700"></span>
+      <div class="dot" id="dotH"></div>
+    </div>
+    <div class="hero">
+      <div class="hero-ico">⚡</div>
+      <div class="h-title">Share Files<br><span class="hl">Instantly</span></div>
+      <div class="h-sub">P2P file sharing, chat & links. No server storage. No account.</div>
+      <div class="badge">🔒 Zero upload to server</div>
+      <br>
+      <div class="nchip" id="nchipHome">Detecting network…</div>
+      <div class="gap16"></div>
+      <div class="mode-grid">
+        <button class="mbtn wifi" onclick="pickMode('wifi')">
+          <div class="mbtn-ico">📡</div>
+          <div>
+            <div class="mbtn-t">Same WiFi</div>
+            <div class="mbtn-d">Ultra fast · up to 5 GB<br>Same network required</div>
+          </div>
+          <div class="mbtn-arr">›</div>
+        </button>
+        <button class="mbtn inet" onclick="pickMode('inet')">
+          <div class="mbtn-ico">🌐</div>
+          <div>
+            <div class="mbtn-t">Over Internet</div>
+            <div class="mbtn-d">Any network · up to 500 MB<br>Works worldwide</div>
+          </div>
+          <div class="mbtn-arr">›</div>
+        </button>
+      </div>
+      <div class="specs">
+        <div class="spec">📦 Multi-file</div>
+        <div class="spec">👥 Multi-receiver</div>
+        <div class="spec">💬 P2P Chat</div>
+        <div class="spec">📱 QR Scan</div>
+        <div class="spec">🔐 Accept/Reject</div>
+        <div class="spec">🔗 Share Links</div>
+      </div>
+    </div>
+  </div>
+  <div class="wrap">
+    <div class="ftr">
+      <div><span class="ftr-logo">@THEDARKGEEKDC</span> · All rights reserved</div>
+      <div>Made with ❤️ &nbsp;·&nbsp; Dev ~ <strong>Mr DK CHAUDHARY</strong></div>
+    </div>
+  </div>
+</div>
+
+<!-- ══ SEND PAGE ════════════════════════════════════════════ -->
+<div id="pgSend" class="page hidden">
+  <div class="wrap">
+    <div class="hdr">
+      <button class="hdr-back" onclick="goHome()">‹ Back</button>
+      <div class="hdr-sp"></div>
+      <div class="nchip" id="nchipSend" style="margin:0;font-size:.68rem;padding:4px 10px">—</div>
+      <div class="dot on" id="dotS"></div>
+    </div>
+
+    <!-- STEP 1: PICK FILES -->
+    <div class="screen" id="stepPick">
+      <div class="steps"><div class="stp on"></div><div class="stp"></div><div class="stp"></div></div>
+      <div class="stitle">Select files (optional)</div>
+      <div class="ssub">Drop files below, or create a room just for chat & text sharing.</div>
+
+      <div class="drop" id="drop">
+        <input type="file" id="fileInput" multiple onchange="onFiles(this.files)">
+        <div class="drop-ico">🗂️</div>
+        <div class="drop-msg">Drop files here</div>
+        <div class="drop-hint">or tap to browse</div>
+      </div>
+      <div class="fl" id="fileList"></div>
+      <div class="fsummary hidden" id="fileSummary">
+        <span><strong id="fileCount">0</strong> files</span>
+        <span><strong id="fileTotal">0 B</strong> total</span>
+      </div>
+
+      <div class="gap10"></div>
+      <button class="btn cy" id="btnCreate" onclick="createRoom()">🚀 Create Room</button>
+      <div class="gap8"></div>
+      <button class="btn gh" onclick="clearFiles()">Clear all</button>
+    </div>
+
+    <!-- STEP 2: SHARE -->
+    <div class="screen hidden" id="stepShare">
+      <div class="steps"><div class="stp on"></div><div class="stp on"></div><div class="stp"></div></div>
+      <div class="stitle">Share this code</div>
+      <div class="ssub">Receiver scans the QR or enters the code.</div>
+
+      <div class="card code-card">
+        <div class="lbl">ROOM CODE</div>
+        <div class="code" id="roomCode">----</div>
+        <div class="copy-row">
+          <button class="cbtn" onclick="copyCode()">📋 Copy Code</button>
+          <button class="cbtn" onclick="copyLink()">🔗 Copy Link</button>
+        </div>
+      </div>
+
+      <div class="qr-row" id="qrRow"></div>
+
+      <div class="g2">
+        <!-- Requests -->
+        <div class="card">
+          <div class="lbl">CONNECTION REQUESTS</div>
+          <div class="stack" id="reqList"></div>
+          <div id="reqEmpty" class="notice n-info"><span class="n-ico">ℹ️</span><span>Waiting for someone to scan…</span></div>
+        </div>
+        <!-- Connected -->
+        <div class="card">
+          <div class="lbl">CONNECTED</div>
+          <div class="stack" id="peerList"></div>
+          <div id="peerEmpty" class="notice n-info"><span class="n-ico">⏳</span><span>No one connected yet…</span></div>
+        </div>
+      </div>
+
+      <div class="gap10"></div>
+      <div class="g2">
+        <!-- Share Text/URL -->
+        <div class="card">
+          <div class="lbl">SHARE TEXT OR URL</div>
+          <textarea id="textBox" class="inp ta" placeholder="Type text to share…"></textarea>
+          <div class="gap8"></div>
+          <button class="btn pu" onclick="shareText()">Send Text</button>
+          <div class="gap8"></div>
+          <input id="urlBox" class="inp" placeholder="Paste a URL…">
+          <div class="gap8"></div>
+          <button class="btn cy" onclick="shareUrl()">Send URL</button>
+        </div>
+        <!-- Chat -->
+        <div class="card">
+          <div class="lbl">P2P CHAT</div>
+          <div class="feed" id="sendFeed"></div>
+          <div class="gap8"></div>
+          <input id="chatSend" class="inp" placeholder="Type a message…" onkeydown="if(event.key==='Enter')sendChat('send')">
+          <div class="gap8"></div>
+          <button class="btn cy" onclick="sendChat('send')">Send</button>
+        </div>
+      </div>
+
+      <div style="margin-top:10px;color:var(--sub);font-size:.7rem;text-align:center">Files go directly to receiver. Nothing stored on server.</div>
+    </div>
+  </div>
+  <div class="wrap">
+    <div class="ftr">
+      <div><span class="ftr-logo">@THEDARKGEEKDC</span> · All rights reserved</div>
+      <div>Made with ❤️ &nbsp;·&nbsp; Dev ~ <strong>Mr DK CHAUDHARY</strong></div>
+    </div>
+  </div>
+</div>
+
+<!-- ══ RECEIVE PAGE ═════════════════════════════════════════ -->
+<div id="pgRecv" class="page hidden">
+  <div class="wrap">
+    <div class="hdr">
+      <button class="hdr-back" onclick="goHome()">‹ Back</button>
+      <div class="hdr-sp"></div>
+      <div class="nchip" id="nchipRecv" style="margin:0;font-size:.68rem;padding:4px 10px">—</div>
+      <div class="dot on" id="dotR"></div>
+    </div>
+
+    <!-- STEP: ENTER CODE -->
+    <div class="screen" id="stepCode">
+      <div class="steps"><div class="stp on"></div><div class="stp"></div><div class="stp"></div></div>
+      <div class="stitle">Enter the code</div>
+      <div class="ssub">Type the 4-digit code shown on sender's screen, or scan their QR.</div>
+
+      <input class="otp-hidden" type="tel" id="otpReal" maxlength="4" inputmode="numeric"
+             autocomplete="one-time-code" oninput="onOtpInput(this.value)"
+             onkeydown="if(event.key==='Enter')joinRoom()">
+
+      <div class="otp-wrap" onclick="focusOtp()">
+        <div class="otp" id="ob0">&nbsp;</div>
+        <div class="otp" id="ob1">&nbsp;</div>
+        <div class="otp" id="ob2">&nbsp;</div>
+        <div class="otp" id="ob3">&nbsp;</div>
+      </div>
+
+      <button class="btn pu" id="btnJoin" onclick="joinRoom()" disabled>Connect to Sender →</button>
+      <div class="gap8"></div>
+      <button class="btn gh" onclick="toggleScanner(true)">📷 Scan QR Code</button>
+
+      <div class="hidden" id="scannerBox" style="margin-top:12px">
+        <div class="card">
+          <div class="lbl">SCAN QR</div>
+          <div id="qrReader"></div>
+          <div class="gap8"></div>
+          <button class="btn gh" onclick="toggleScanner(false)">Close Scanner</button>
+        </div>
+      </div>
+
+      <div class="notice n-info" id="waitNotice" style="margin-top:12px">
+        <span class="n-ico">ℹ️</span>
+        <span id="waitMsg">Enter code or scan QR to connect.</span>
+      </div>
+    </div>
+
+    <!-- STEP: RECEIVE PROGRESS -->
+    <div class="screen hidden" id="stepRecv">
+      <div class="steps"><div class="stp on"></div><div class="stp on"></div><div class="stp" id="stp3r"></div></div>
+      <div class="stitle">Receiving</div>
+
+      <div class="notice n-info" id="recvNotice"><span class="n-ico">⏳</span><span>Connecting to sender…</span></div>
+
+      <div class="prog-card hidden" id="fileProgCard">
+        <div class="lbl">FILE PROGRESS</div>
+        <div class="stack" id="recvFileRows"></div>
+      </div>
+
+      <div class="ov hidden" id="ovCard">
+        <div class="ov-top">
+          <div class="ov-t">OVERALL</div>
+          <div class="ov-pct" id="ovPct">0%</div>
+        </div>
+        <div class="bw"><div class="b" id="ovBar"></div></div>
+        <div class="met-row">
+          <div class="met">⚡ <span id="speedVal">—</span></div>
+          <div class="met">⏱ <span id="etaVal">—</span></div>
+          <div class="met">📦 <span id="recvSz">0 B</span></div>
+        </div>
+      </div>
+
+      <div class="gap10"></div>
+      <div class="card">
+        <div class="lbl">RECEIVED MESSAGES</div>
+        <div class="feed" id="recvFeed"></div>
+      </div>
+
+      <div class="gap10"></div>
+      <div class="card">
+        <div class="lbl">P2P CHAT</div>
+        <div class="feed" id="recvChatFeed"></div>
+        <div class="gap8"></div>
+        <input id="chatRecv" class="inp" placeholder="Type a message…" onkeydown="if(event.key==='Enter')sendChat('recv')">
+        <div class="gap8"></div>
+        <button class="btn pu" onclick="sendChat('recv')">Send</button>
+      </div>
+
+      <div style="margin-top:10px;color:var(--sub);font-size:.7rem;text-align:center">Nothing stored on server · Auto-deleted after transfer</div>
+    </div>
+  </div>
+  <div class="wrap">
+    <div class="ftr">
+      <div><span class="ftr-logo">@THEDARKGEEKDC</span> · All rights reserved</div>
+      <div>Made with ❤️ &nbsp;·&nbsp; Dev ~ <strong>Mr DK CHAUDHARY</strong></div>
+    </div>
+  </div>
+</div>
+
+<div id="toasts"></div>
+
+<script>
+'use strict';
+// ── Constants ──────────────────────────────────────────────
+const BASE     = window.location.origin;
+const CHUNK    = 256 * 1024;
+const BLOCK    = 4   * 1024 * 1024;
+const MAX_WIFI = 5   * 1024 * 1024 * 1024;
+const MAX_INET = 500 * 1024 * 1024;
+const ICE      = { iceServers:[
+  {urls:'stun:stun.l.google.com:19302'},
+  {urls:'stun:stun1.l.google.com:19302'},
+  {urls:'stun:stun.cloudflare.com:3478'},
+]};
+
+// ── State ──────────────────────────────────────────────────
+let socket, mode = 'inet', modeAuto = true;
+let myName = '';
+let netInfo = { default_mode:'inet', network_label:'Internet', local_ip:'', port:5683 };
+let localIP = null, localPort = null;
+let code = null;
+let selFiles = [];
+let peers = {};          // sender side: sid → {pc, dc, name, sent, total, sentFiles}
+let pendingReqs = [];    // incoming requests
+let scanner = null;
+
+// Receiver state
+let recvDC = null;
+let recvPC = null;
+let recvSenderSid = null;
+let recvSenderName = '';
+let recvBufs = {}, pendHdr = null;
+let recvTotal = 0, recvTotalSz = 0;
+let speedTimer = null, lastB = 0, lastT = 0;
+
+// ── Tiny helpers ───────────────────────────────────────────
+const $ = id => document.getElementById(id);
+const show = id => $(id)?.classList.remove('hidden');
+const hide = id => $(id)?.classList.add('hidden');
+const esc  = s  => String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+
+function fmtSz(b){ if(b<1024)return b+' B'; if(b<1048576)return (b/1024).toFixed(1)+' KB'; if(b<1073741824)return (b/1048576).toFixed(1)+' MB'; return (b/1073741824).toFixed(2)+' GB'; }
+function fmtSpd(b){ if(!isFinite(b)||b<=0)return '—'; if(b<1024)return b.toFixed(0)+' B/s'; if(b<1048576)return (b/1024).toFixed(1)+' KB/s'; return (b/1048576).toFixed(1)+' MB/s'; }
+function fmtETA(s){ if(!isFinite(s)||s<0)return '—'; if(s<60)return Math.max(1,Math.round(s))+'s'; if(s<3600)return Math.floor(s/60)+'m '+Math.floor(s%60)+'s'; return Math.floor(s/3600)+'h '+Math.floor((s%3600)/60)+'m'; }
+function fmtTime(){ return new Date().toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'}); }
+function fileIcon(n){ const e=n.split('.').pop().toLowerCase(); return({pdf:'📄',doc:'📝',docx:'📝',txt:'📝',jpg:'🖼',jpeg:'🖼',png:'🖼',gif:'🖼',webp:'🖼',mp4:'🎬',mkv:'🎬',avi:'🎬',mov:'🎬',mp3:'🎵',wav:'🎵',flac:'🎵',m4a:'🎵',zip:'📦',rar:'📦','7z':'📦',apk:'📱',exe:'⚙',py:'🐍',js:'📜',html:'🌐',xlsx:'📊',xls:'📊',pptx:'📊',csv:'📊',iso:'💿'}[e]||'📁'); }
+
+function toast(msg, type='ok'){
+  const el = document.createElement('div');
+  el.className = 'toast';
+  el.style.borderLeftColor = {err:'var(--red)',warn:'var(--amb)',ok:'var(--grn)',info:'var(--cyan)'}[type]||'var(--cyan)';
+  el.textContent = msg;
+  $('toasts').appendChild(el);
+  setTimeout(()=>{ el.style.opacity='0'; el.style.transition='opacity .25s'; setTimeout(()=>el.remove(),260); }, 2800);
+}
+
+function setOnline(v){ document.querySelectorAll('.dot').forEach(d=>d.classList.toggle('on',v)); }
+
+// ── Network chip sync ──────────────────────────────────────
+function syncChips(){
+  const lbl = modeAuto
+    ? `Auto: ${netInfo.network_label||'Internet'}`
+    : (mode==='wifi' ? 'WiFi mode' : 'Internet mode');
+  document.querySelectorAll('.nchip').forEach(el=>{
+    el.textContent = lbl;
+    el.classList.toggle('wifi', mode==='wifi');
+    el.classList.toggle('inet', mode==='inet');
+  });
+}
+
+// ── Name ───────────────────────────────────────────────────
+function openNameModal(){
+  $('nameInp').value = localStorage.getItem('sa_name')||'';
+  show('nameOverlay');
+  setTimeout(()=>$('nameInp').focus(), 100);
+}
+function saveName(){
+  const v = $('nameInp').value.trim();
+  if(!v){ toast('Please enter a name.','warn'); return; }
+  localStorage.setItem('sa_name', v);
+  socket.emit('register_name', {name: v});
+}
+$('nameInp').addEventListener('keydown', e=>{ if(e.key==='Enter') saveName(); });
+
+// ── Pages ──────────────────────────────────────────────────
+function showPage(id){
+  ['pgHome','pgSend','pgRecv'].forEach(p=>$(p).classList.toggle('hidden', p!==id));
+}
+
+function pickMode(m){
+  mode = m; modeAuto = false;
+  history.replaceState({},``,`/?mode=${mode}`);
+  syncChips();
+  showPage('pgSend');
+  show('stepPick'); hide('stepShare');
+}
+
+function goHome(){
+  stopScanner(); stopSpeed();
+  Object.values(peers).forEach(p=>{ try{p.pc.close();}catch(e){} });
+  if(recvPC){ try{recvPC.close();}catch(e){} recvPC=null; }
+  peers={}; pendingReqs=[]; code=null; selFiles=[];
+  recvDC=null; recvPC=null; recvSenderSid=null; recvSenderName='';
+  recvBufs={}; pendHdr=null; recvTotal=0; recvTotalSz=0;
+  $('fileInput').value=''; $('fileList').innerHTML='';
+  $('fileSummary').classList.add('hidden');
+  $('reqList').innerHTML=''; $('peerList').innerHTML='';
+  $('sendFeed').innerHTML=''; $('recvFeed').innerHTML=''; $('recvChatFeed').innerHTML='';
+  $('otpReal').value=''; [0,1,2,3].forEach(i=>{ const b=$(`ob${i}`); if(b){b.textContent='\u00a0';b.classList.remove('filled');} });
+  $('btnJoin').disabled=true;
+  hide('stepShare'); hide('stepRecv'); hide('scannerBox');
+  show('stepPick'); show('reqEmpty'); show('peerEmpty');
+  $('recvNotice').className='notice n-info';
+  $('recvNotice').innerHTML='<span class="n-ico">⏳</span><span>Connecting to sender…</span>';
+  showPage('pgHome');
+  history.replaceState({},'','/');
+}
+
+function resetSendBtn(){ $('btnCreate').disabled=false; $('btnCreate').textContent='🚀 Create Room'; }
+
+// ── Files ──────────────────────────────────────────────────
+function setupDrop(){
+  const d=$('drop');
+  d.addEventListener('dragover', e=>{e.preventDefault();d.classList.add('over');});
+  d.addEventListener('dragleave', ()=>d.classList.remove('over'));
+  d.addEventListener('drop', e=>{e.preventDefault();d.classList.remove('over');onFiles(e.dataTransfer.files);});
+}
+function onFiles(files){
+  const max = mode==='wifi'?MAX_WIFI:MAX_INET;
+  for(const f of files){
+    if(f.size>max){ toast(`${f.name} too large (max ${mode==='wifi'?'5 GB':'500 MB'})`, 'warn'); continue; }
+    if(selFiles.some(x=>x.name===f.name&&x.size===f.size)){ toast(`${f.name} already added`,'warn'); continue; }
+    selFiles.push(f);
+  }
+  renderFiles();
+}
+function clearFiles(){ selFiles=[];$('fileInput').value='';renderFiles(); }
+function removeFile(i){ selFiles.splice(i,1);renderFiles(); }
+function renderFiles(){
+  const tot=selFiles.reduce((a,f)=>a+f.size,0);
+  $('fileList').innerHTML=selFiles.map((f,i)=>`
+    <div class="fi">
+      <div class="fi-ico">${fileIcon(f.name)}</div>
+      <div class="fi-inf"><div class="fi-nm">${esc(f.name)}</div><div class="fi-sz">${fmtSz(f.size)}</div></div>
+      <button class="fi-del" onclick="removeFile(${i})">✕</button>
+    </div>`).join('');
+  const has=selFiles.length>0;
+  $('fileSummary').classList.toggle('hidden',!has);
+  if(has){ $('fileCount').textContent=selFiles.length; $('fileTotal').textContent=fmtSz(tot); }
+}
+
+// ── Room ───────────────────────────────────────────────────
+function createRoom(){
+  $('btnCreate').disabled=true; $('btnCreate').textContent='Creating…';
+  socket.emit('create_room');
+}
+function onRoomCreated(d){
+  code=d.code; $('roomCode').textContent=code;
+  buildQR(code); resetSendBtn();
+  hide('stepPick'); show('stepShare');
+  toast(`Room created: ${code}`);
+}
+function buildQR(c){
+  const row=$('qrRow'); row.innerHTML='';
+  const inetURL=`${BASE}/?code=${c}&mode=inet`;
+  if(mode==='wifi'&&localIP){
+    const wifiURL=`http://${localIP}:${localPort}/?code=${c}&mode=wifi`;
+    row.innerHTML+=qrCard(wifiURL,'📡 WiFi QR','Scan on same WiFi');
+    row.innerHTML+=qrCard(inetURL,'🌐 Internet QR','Any network');
+  }else{
+    row.style.justifyContent='center';
+    row.innerHTML+=qrCard(inetURL,'🌐 Share QR','Scan or enter the code');
+  }
+}
+function qrCard(url,lbl,hint){
+  return `<div class="qr-card"><img src="/qr?d=${encodeURIComponent(url)}&s=10" alt="QR" loading="lazy"><div class="qr-lbl">${lbl}</div><div class="qr-hint">${hint}</div></div>`;
+}
+function copyCode(){ navigator.clipboard?.writeText(code||''); toast('Code copied.'); }
+function copyLink(){ navigator.clipboard?.writeText(`${BASE}/?code=${code}&mode=${mode}`); toast('Link copied.'); }
+
+// ── Requests ───────────────────────────────────────────────
+function onIncomingRequest(d){
+  pendingReqs.unshift(d);
+  renderReqs();
+  hide('reqEmpty');
+  toast(`📥 ${d.receiver_name} wants to connect.`,'info');
+}
+function renderReqs(){
+  $('reqList').innerHTML=pendingReqs.map(r=>`
+    <div class="pitem">
+      <div class="pitem-av">👤</div>
+      <div class="pitem-inf">
+        <div class="pitem-nm">${esc(r.receiver_name)}</div>
+        <div class="pitem-st">Wants to connect</div>
+        <div class="req-btns">
+          <button class="rbtn accept" onclick="decide('${r.request_id}','accept')">✅ Accept</button>
+          <button class="rbtn reject" onclick="decide('${r.request_id}','reject')">❌ Reject</button>
+        </div>
+      </div>
+    </div>`).join('');
+}
+function decide(rid, decision){
+  socket.emit('request_decision',{request_id:rid, decision});
+  pendingReqs=pendingReqs.filter(r=>r.request_id!==rid);
+  renderReqs();
+  if(!pendingReqs.length){ hide('reqList'); show('reqEmpty'); }
+}
+
+// ── Sender Peers ───────────────────────────────────────────
+function onReceiverJoined(d){
+  const {receiver_sid:sid, receiver_name:name} = d;
+  addPeerRow(sid, name);
+  hide('peerEmpty');
+  initPeer(sid, name);
+}
+function onReceiverLeft(sid){
+  const p=peers[sid]; if(p){ try{p.pc.close();}catch(e){} delete peers[sid]; }
+  const el=$(`peer-${sid}`); if(el) el.remove();
+  if(!Object.keys(peers).length) show('peerEmpty');
+}
+function addPeerRow(sid, name){
+  const el=document.createElement('div');
+  el.className='pitem'; el.id=`peer-${sid}`;
+  el.innerHTML=`
+    <div class="pitem-av">${esc((name||'U')[0].toUpperCase())}</div>
+    <div class="pitem-inf" style="flex:1;min-width:0">
+      <div class="pitem-nm">${esc(name||'Receiver')}</div>
+      <div class="pitem-st" id="pst-${sid}">Connecting…</div>
+      <div class="pbar-w" style="margin-top:7px"><div class="pbar" id="pb-${sid}"></div></div>
+    </div>
+    <div class="pitem-pct" id="ppct-${sid}">0%</div>`;
+  $('peerList').appendChild(el);
+}
+function setPeerSt(sid,txt){ const e=$(`pst-${sid}`); if(e)e.textContent=txt; }
+function setPeerPct(sid,pct){
+  const p=$(`pb-${sid}`); if(p)p.style.width=pct+'%';
+  const c=$(`ppct-${sid}`); if(c)c.textContent=pct+'%';
+}
+
+// ── WebRTC Sender ──────────────────────────────────────────
+async function initPeer(sid, name){
+  const pc = new RTCPeerConnection(ICE);
+  const dc = pc.createDataChannel('share',{ordered:true});
+  peers[sid] = {pc, dc, name, sent:0, total:0, sentFiles:false};
+  dc.binaryType='arraybuffer';
+  dc.bufferedAmountLowThreshold = CHUNK*4;
+
+  dc.onopen = () => {
+    setPeerSt(sid,'Connected ✅');
+    appendBubble($('sendFeed'),{from:name,text:'Connected.',type:'chat',me:false});
+    if(selFiles.length && !peers[sid].sentFiles) sendAllFiles(sid);
+  };
+  dc.onerror = ()=> setPeerSt(sid,'Error ❌');
+  dc.onmessage = e => {
+    if(typeof e.data==='string'){
+      const m=JSON.parse(e.data);
+      if(m.type==='chat') appendBubble($('sendFeed'),{from:m.from||name,text:m.text,type:'chat',me:false});
+    }
+  };
+  pc.onicecandidate = e => { if(e.candidate) socket.emit('webrtc_ice',{to:sid,candidate:e.candidate}); };
+  pc.onconnectionstatechange = () => {
+    if(['failed','disconnected'].includes(pc.connectionState)) setPeerSt(sid,'Lost ❌');
+  };
+  const offer=await pc.createOffer();
+  await pc.setLocalDescription(offer);
+  socket.emit('webrtc_offer',{to:sid,offer:pc.localDescription});
+}
+
+async function sendAllFiles(sid){
+  const peer=peers[sid];
+  if(!peer||peer.sentFiles) return;
+  peer.sentFiles=true;
+  const total=selFiles.reduce((a,f)=>a+f.size,0);
+  peer.total=total; peer.sent=0;
+  safeSend(peer.dc, JSON.stringify({type:'meta',totalSize:total,
+    files:selFiles.map((f,i)=>({index:i,name:f.name,size:f.size,mime:f.type||'application/octet-stream'}))}));
+  for(let i=0;i<selFiles.length;i++){
+    if(!peers[sid]||peer.dc.readyState!=='open') return;
+    await sendFileToPeer(peer, selFiles[i], i, sid);
+  }
+  if(peers[sid]&&peer.dc.readyState==='open'){
+    safeSend(peer.dc, JSON.stringify({type:'all_done'}));
+    setPeerSt(sid,'Done ✅'); setPeerPct(sid,100);
+  }
+}
+async function sendFileToPeer(peer, file, idx, sid){
+  const dc=peer.dc;
+  safeSend(dc, JSON.stringify({type:'file_start',idx,name:file.name,size:file.size}));
+  let off=0;
+  while(off<file.size){
+    if(!peers[sid]||dc.readyState!=='open') return;
+    const buf=await file.slice(off,Math.min(off+BLOCK,file.size)).arrayBuffer();
+    let bo=0;
+    while(bo<buf.byteLength){
+      if(dc.bufferedAmount>CHUNK*8){
+        await new Promise(res=>{
+          dc.bufferedAmountLowThreshold=CHUNK*2;
+          dc.onbufferedamountlow=()=>{dc.onbufferedamountlow=null;res();};
+        });
+      }
+      const chunk=buf.slice(bo,Math.min(bo+CHUNK,buf.byteLength));
+      safeSend(dc, JSON.stringify({type:'chunk',idx,offset:off+bo,sz:chunk.byteLength}));
+      safeSend(dc, chunk);
+      bo+=chunk.byteLength; peer.sent+=chunk.byteLength;
+      setPeerPct(sid,Math.round((peer.sent/peer.total)*100));
+    }
+    off+=buf.byteLength;
+  }
+  safeSend(dc, JSON.stringify({type:'file_done',idx}));
+}
+function safeSend(dc, data){
+  try{ if(dc.readyState==='open') dc.send(data); } catch(e){}
+}
+
+// ── Chat & Text/URL ────────────────────────────────────────
+function sendChat(side){
+  const inp=side==='send'?$('chatSend'):$('chatRecv');
+  const text=inp.value.trim(); if(!text){toast('Type a message.','warn');return;}
+  const payload={type:'chat',text,from:myName,ts:Date.now()};
+  broadcastToAll(JSON.stringify(payload));
+  appendBubble(side==='send'?$('sendFeed'):$('recvChatFeed'),{from:'Me',text,type:'chat',me:true});
+  inp.value='';
+}
+function shareText(){
+  const text=$('textBox').value.trim(); if(!text){toast('Type text first.','warn');return;}
+  const payload={type:'text',kind:'text',text,from:myName,ts:Date.now()};
+  broadcastToAll(JSON.stringify(payload));
+  appendBubble($('sendFeed'),{from:'Me',text,type:'text',me:true});
+  $('textBox').value='';
+}
+function shareUrl(){
+  let text=$('urlBox').value.trim(); if(!text){toast('Paste a URL first.','warn');return;}
+  if(!/^https?:\/\//i.test(text)) text='https://'+text;
+  const payload={type:'text',kind:'url',text,from:myName,ts:Date.now()};
+  broadcastToAll(JSON.stringify(payload));
+  appendBubble($('sendFeed'),{from:'Me',text,type:'url',me:true});
+  $('urlBox').value='';
+}
+function broadcastToAll(data){
+  Object.values(peers).forEach(p=>safeSend(p.dc,data));
+  if(recvDC&&recvDC.readyState==='open') recvDC.send(data);
+}
+
+// ── Feed bubbles ───────────────────────────────────────────
+function openSharedUrl(url){
+  try{ window.open(decodeURIComponent(url),'_blank','noopener,noreferrer'); }catch(e){}
+}
+function copySharedUrl(url){
+  try{ navigator.clipboard?.writeText(decodeURIComponent(url)); }catch(e){}
+}
+function appendBubble(feed, {from,text,type,me}){
+  if(!feed) return;
+  const d=document.createElement('div');
+  d.className='bubble'+(me?' me':'');
+  const isUrl = type==='url';
+  const safeText = esc(text);
+  const encUrl = encodeURIComponent(text);
+  d.innerHTML = `
+    <div class="who">${me?'ME':esc(from||'Peer')}</div>
+    <div class="txt">${safeText}</div>
+    <div class="ts">${fmtTime()}</div>
+    ${isUrl ? `<div class="lnk">
+      <button class="mini" data-url="${encUrl}" onclick="openSharedUrl(this.dataset.url)">🔗 Open</button>
+      <button class="mini" data-url="${encUrl}" onclick="copySharedUrl(this.dataset.url)">📋 Copy</button>
+    </div>` : ''}`;
+  feed.appendChild(d);
+  feed.scrollTop=feed.scrollHeight;
+}
+
+// ── Receiver OTP & Join ─────────────────────────────────────
+function focusOtp(){ $('otpReal').focus(); }
+function onOtpInput(v){
+  const d=v.replace(/\D/g,'').slice(0,4);
+  for(let i=0;i<4;i++){
+    const b=$(`ob${i}`);
+    b.textContent=d[i]||'\u00a0';
+    b.classList.toggle('filled',!!d[i]);
+  }
+  $('btnJoin').disabled=d.length<4;
+}
+function joinRoom(){
+  const c=$('otpReal').value.trim();
+  if(!/^\d{4}$/.test(c)){toast('Enter all 4 digits.','warn');return;}
+  if(!socket.connected){toast('Not connected.','err');return;}
+  socket.emit('join_room_request',{code:c});
+  $('waitMsg').textContent='Waiting for sender to accept…';
+}
+
+// ── WebRTC Receiver ────────────────────────────────────────
+async function onOffer(d){
+  recvSenderSid=d.from;
+  recvPC=new RTCPeerConnection(ICE);
+  recvPC.onicecandidate=e=>{ if(e.candidate) socket.emit('webrtc_ice',{to:recvSenderSid,candidate:e.candidate}); };
+  recvPC.ondatachannel=e=>setupRecvDC(e.channel);
+  recvPC.onconnectionstatechange=()=>{
+    if(recvPC.connectionState==='connected') setNotice('ok',`✅ Connected with ${recvSenderName||'sender'}.`);
+    if(recvPC.connectionState==='failed') setNotice('err','❌ Connection failed.');
+  };
+  await recvPC.setRemoteDescription(new RTCSessionDescription(d.offer));
+  const ans=await recvPC.createAnswer();
+  await recvPC.setLocalDescription(ans);
+  socket.emit('webrtc_answer',{to:recvSenderSid,answer:recvPC.localDescription});
+}
+
+function setupRecvDC(dc){
+  recvDC=dc;
+  dc.binaryType='arraybuffer';
+  dc.onopen=()=>{ setNotice('ok',`✅ Connected with ${recvSenderName||'sender'}.`); toast('Connected!'); };
+  dc.onerror=()=>setNotice('err','❌ Data channel error.');
+  dc.onmessage=e=>{
+    if(typeof e.data==='string') handleRecvCtrl(JSON.parse(e.data));
+    else handleRecvBin(e.data);
+  };
+}
+
+function handleRecvCtrl(m){
+  if(m.type==='meta'){
+    recvBufs={}; recvTotal=0; recvTotalSz=m.totalSize||0;
+    pendHdr=null;
+    m.files.forEach(f=>{recvBufs[f.index]={meta:f,chunks:[],got:0};});
+    renderRecvFiles(m.files);
+    show('fileProgCard'); show('ovCard');
+    startSpeed();
+  }
+  if(m.type==='chunk') pendHdr=m;
+  if(m.type==='file_done') recvFileDone(m.idx);
+  if(m.type==='all_done') recvAllDone();
+  if(m.type==='text'){
+    appendBubble($('recvFeed'),{from:m.from||recvSenderName||'Sender',text:m.text,type:m.kind,me:false});
+    toast(`📨 ${m.kind==='url'?'URL':'Text'} received.`,'info');
+  }
+  if(m.type==='chat'){
+    appendBubble($('recvChatFeed'),{from:m.from||recvSenderName||'Sender',text:m.text,type:'chat',me:false});
+  }
+}
+function handleRecvBin(data){
+  if(!pendHdr) return;
+  const idx=pendHdr.idx; pendHdr=null;
+  const item=recvBufs[idx]; if(!item) return;
+  item.chunks.push(data); item.got+=data.byteLength; recvTotal+=data.byteLength;
+  const pct=recvTotalSz?Math.round((recvTotal/recvTotalSz)*100):0;
+  $('ovPct').textContent=pct+'%'; $('ovBar').style.width=pct+'%';
+  $('recvSz').textContent=`${fmtSz(recvTotal)} / ${fmtSz(recvTotalSz)}`;
+  const fp=Math.round((item.got/item.meta.size)*100);
+  const bar=$(`rbar-${idx}`); if(bar)bar.style.width=fp+'%';
+  const mt=$(`rmeta-${idx}`); if(mt)mt.textContent=`${fmtSz(item.got)} / ${fmtSz(item.meta.size)}`;
+}
+function recvFileDone(idx){
+  const bar=$(`rbar-${idx}`); if(bar)bar.style.width='100%';
+  const mt=$(`rmeta-${idx}`); if(mt)mt.textContent='✅ Done';
+}
+async function recvAllDone(){
+  stopSpeed(); setNotice('ok','✅ Transfer complete. Preparing download…');
+  $('stp3r').classList.add('on');
+  const parts=Object.values(recvBufs);
+  try{
+    if(parts.length===1){
+      dlBlob(new Blob(parts[0].chunks,{type:parts[0].meta.mime}),parts[0].meta.name);
+    }else{
+      setNotice('info','📦 Creating ZIP…');
+      const zip=new JSZip();
+      parts.forEach(f=>zip.file(f.meta.name,new Blob(f.chunks)));
+      const blob=await zip.generateAsync({type:'blob',compression:'DEFLATE',compressionOptions:{level:1}},
+        p=>setNotice('info',`📦 ZIP ${p.percent.toFixed(0)}%`));
+      dlBlob(blob,'shared_files.zip');
+    }
+    setNotice('ok','🎉 Download started!');
+  }catch(e){ setNotice('err','❌ Download failed. Try again.'); }
+}
+function dlBlob(blob,name){
+  const url=URL.createObjectURL(blob);
+  const a=Object.assign(document.createElement('a'),{href:url,download:name});
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(()=>URL.revokeObjectURL(url),15000);
+}
+function renderRecvFiles(files){
+  $('recvFileRows').innerHTML=files.map(f=>`
+    <div>
+      <div class="prog-nm">${fileIcon(f.name)} ${esc(f.name)}</div>
+      <div class="prog-meta"><span id="rmeta-${f.index}">${fmtSz(0)} / ${fmtSz(f.size)}</span><span>${fmtSz(f.size)}</span></div>
+      <div class="bw"><div class="b" id="rbar-${f.index}"></div></div>
+    </div>`).join('');
+}
+function setNotice(type,msg){
+  const el=$('recvNotice'); if(!el)return;
+  el.className=`notice n-${type}`;
+  el.innerHTML=`<span class="n-ico">${{ok:'✅',err:'❌',warn:'⚠️',info:'ℹ️'}[type]||'ℹ️'}</span><span>${msg}</span>`;
+}
+
+// ── ICE (unified) ──────────────────────────────────────────
+async function onIce(d){
+  try{
+    if(peers[d.from]) await peers[d.from].pc.addIceCandidate(new RTCIceCandidate(d.candidate));
+    else if(recvPC&&d.from===recvSenderSid) await recvPC.addIceCandidate(new RTCIceCandidate(d.candidate));
+  }catch(e){}
+}
+
+// ── Speed ──────────────────────────────────────────────────
+function startSpeed(){
+  stopSpeed(); lastB=0; lastT=Date.now();
+  speedTimer=setInterval(()=>{
+    const now=Date.now(), dt=(now-lastT)/1000;
+    const bps=dt>0?(recvTotal-lastB)/dt:0;
+    lastB=recvTotal; lastT=now;
+    $('speedVal').textContent=fmtSpd(bps);
+    if(recvTotalSz>recvTotal&&bps>0) $('etaVal').textContent=fmtETA((recvTotalSz-recvTotal)/bps);
+  },1000);
+}
+function stopSpeed(){ if(speedTimer){clearInterval(speedTimer);speedTimer=null;} }
+
+// ── QR Scanner ─────────────────────────────────────────────
+function toggleScanner(open){
+  if(open){
+    show('scannerBox');
+    if(!scanner){
+      scanner=new Html5Qrcode('qrReader');
+      scanner.start({facingMode:'environment'},{fps:10,qrbox:250},
+        decoded=>{
+          const m=String(decoded).match(/[?&]code=(\d{4})/i)||String(decoded).match(/\b(\d{4})\b/);
+          if(m){ $('otpReal').value=m[1]; onOtpInput(m[1]); toast('✅ QR scanned!'); toggleScanner(false); }
+        },
+        ()=>{}
+      ).catch(()=>toast('Camera access failed.','err'));
+    }
+  }else{
+    hide('scannerBox'); stopScanner();
+  }
+}
+function stopScanner(){
+  if(scanner){ scanner.stop().then(()=>scanner.clear()).catch(()=>{}); scanner=null; }
+}
+
+// ── Socket ─────────────────────────────────────────────────
+function connectSocket(){
+  socket=io(BASE,{transports:['websocket','polling'],reconnectionAttempts:10,reconnectionDelay:1000});
+  socket.on('connect',()=>setOnline(true));
+  socket.on('disconnect',()=>setOnline(false));
+  socket.on('error',d=>toast(d.msg||'Server error','err'));
+
+  socket.on('name_ok',d=>{
+    myName=d.name; localStorage.setItem('sa_name',myName);
+    $('nameOverlay').classList.add('hidden');
+    $('myNameTag').textContent=myName;
+    document.title=`ShareAnywhere — ${myName}`;
+    toast(`Welcome, ${myName} 👋`);
+  });
+
+  socket.on('room_created',d=>onRoomCreated(d));
+  socket.on('incoming_request',d=>onIncomingRequest(d));
+  socket.on('request_canceled',()=>{ toast('Request canceled.','warn'); pendingReqs=[]; renderReqs(); show('reqEmpty'); });
+  socket.on('waiting_for_approval',d=>{ $('waitNotice').className='notice n-warn'; $('waitMsg').textContent=`Waiting for ${d.sender_name||'sender'} to accept…`; });
+  socket.on('request_accepted',d=>{
+    recvSenderSid=d.sender_sid; recvSenderName=d.sender_name||d.receiver_name||'Sender';
+    hide('stepCode'); show('stepRecv'); stopScanner();
+    setNotice('ok',`✅ Accepted by ${recvSenderName}. Connecting…`);
+    toast(`Connected with ${recvSenderName}.`);
+  });
+  socket.on('request_rejected',d=>{ toast(`Request rejected by ${d.sender_name||'sender'}.`,'warn'); $('waitNotice').className='notice n-warn'; $('waitMsg').textContent='Request rejected. Try again.'; });
+
+  socket.on('receiver_joined',d=>onReceiverJoined(d));
+  socket.on('receiver_left',d=>onReceiverLeft(d.sid));
+  socket.on('sender_left',()=>{ setNotice('err','❌ Sender disconnected.'); toast('Sender left.','err'); });
+
+  socket.on('webrtc_offer',d=>onOffer(d));
+  socket.on('webrtc_answer',async d=>{ const p=peers[d.from]; if(p) await p.pc.setRemoteDescription(new RTCSessionDescription(d.answer)).catch(()=>{}); });
+  socket.on('webrtc_ice',d=>onIce(d));
+}
+
+// ── Boot ───────────────────────────────────────────────────
+window.addEventListener('load',async()=>{
+  await Promise.all([
+    fetch('/api/localip').then(r=>r.json()).then(d=>{localIP=d.ip;localPort=d.port;}).catch(()=>{}),
+    fetch('/api/network').then(r=>r.json()).then(d=>{ netInfo=d; mode=d.default_mode||'inet'; modeAuto=true; }).catch(()=>{})
+  ]);
+
+  const p=new URLSearchParams(location.search);
+  const urlCode=p.get('code'), urlMode=p.get('mode');
+  if(urlMode){ mode=urlMode==='wifi'?'wifi':'inet'; modeAuto=false; }
+  syncChips(); setupDrop(); connectSocket();
+
+  const saved=localStorage.getItem('sa_name');
+  if(saved){
+    socket.on('connect',()=>{ socket.emit('register_name',{name:saved}); });
+  }else{
+    socket.on('connect',()=>openNameModal());
+  }
+
+  if(urlCode){
+    const doJoin=()=>{
+      mode=mode; modeAuto=!!urlMode?false:true; syncChips();
+      showPage('pgRecv'); show('stepCode'); hide('stepRecv');
+      $('otpReal').value=urlCode; onOtpInput(urlCode);
+      setTimeout(joinRoom,200);
+    };
+    socket.connected ? doJoin() : socket.once('connect',()=>setTimeout(doJoin,200));
+  }
+});
+
+// Expose for inline handlers
+window.saveName=saveName; window.pickMode=pickMode; window.goHome=goHome;
+window.createRoom=createRoom; window.clearFiles=clearFiles; window.removeFile=removeFile;
+window.onFiles=onFiles; window.copyCode=copyCode; window.copyLink=copyLink;
+window.decide=decide; window.shareText=shareText; window.shareUrl=shareUrl;
+window.sendChat=sendChat; window.joinRoom=joinRoom; window.focusOtp=focusOtp;
+window.onOtpInput=onOtpInput; window.toggleScanner=toggleScanner;
+window.openSharedUrl=openSharedUrl; window.copySharedUrl=copySharedUrl;
+</script>
+</body>
+</html>
