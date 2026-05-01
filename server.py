@@ -206,8 +206,7 @@ def on_decision(data):
             room["receivers"].add(receiver_sid)
 
         # Add receiver to SocketIO room
-        socketio.server.enter_room(receiver_sid, code,
-                                   namespace=socketio.namespace)
+        join_room(code, sid=receiver_sid)
 
         socketio.emit("request_accepted",
                       {"request_id": rid, "code": code, "sender_sid": sid},
