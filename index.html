@@ -1,0 +1,1348 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1">
+<title>ShareAnywhere</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.7.5/socket.io.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+<script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
+<style>
+/* ── Reset ── */
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#07071a;--surface:#0d0d26;--card:#12123a;--border:#252560;
+  --cyan:#00c8f0;--purple:#a066ff;--green:#00d98a;--red:#ff4d6d;--amber:#ffbb33;
+  --text:#eeeeff;--sub:#8b8bbc;--card2:#0f0f30;
+}
+html,body{height:100%}
+body{font-family:'Segoe UI',system-ui,sans-serif;background:var(--bg);color:var(--text);
+  min-height:100vh;
+  background-image:
+    radial-gradient(ellipse 70% 50% at 20% 0%,rgba(0,200,240,.06),transparent),
+    radial-gradient(ellipse 60% 40% at 80% 100%,rgba(160,102,255,.06),transparent);
+}
+button,input,textarea{font:inherit}
+button{cursor:pointer}
+img{max-width:100%;display:block}
+a{color:var(--cyan);text-decoration:none}
+textarea{resize:vertical}
+
+/* ── Layout ── */
+.page{display:none;flex-direction:column;min-height:100vh}
+.page.active{display:flex}
+.wrap{max-width:560px;margin:0 auto;padding:0 16px;width:100%}
+.flex-grow{flex:1}
+.hidden{display:none!important}
+
+/* ── Navbar ── */
+.nav{
+  position:sticky;top:0;z-index:40;
+  background:rgba(7,7,26,.9);backdrop-filter:blur(16px);
+  border-bottom:1px solid var(--border);
+}
+.nav-inner{
+  display:flex;align-items:center;gap:10px;padding:14px 0;
+}
+.nav-logo{
+  font-size:1.05rem;font-weight:900;letter-spacing:1px;
+  background:linear-gradient(90deg,var(--cyan),var(--purple));
+  -webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;
+}
+.nav-back{
+  background:none;border:none;color:var(--sub);
+  padding:6px 8px;border-radius:8px;font-size:.9rem;font-weight:700;
+  transition:color .2s;display:flex;align-items:center;gap:4px;
+}
+.nav-back:hover{color:var(--text)}
+.nav-sp{flex:1}
+.net-chip{
+  display:inline-flex;align-items:center;gap:6px;
+  padding:4px 12px;border-radius:20px;font-size:.7rem;font-weight:700;
+  background:rgba(0,217,138,.08);border:1px solid rgba(0,217,138,.2);color:var(--green);
+}
+.net-chip.inet{background:rgba(160,102,255,.08);border-color:rgba(160,102,255,.2);color:#c9aaff}
+.ndot{width:7px;height:7px;border-radius:50%;background:var(--sub);transition:.4s}
+.ndot.on{background:var(--green);box-shadow:0 0 7px var(--green)}
+.ndot.inet-on{background:#a066ff;box-shadow:0 0 7px #a066ff}
+
+/* ── Footer ── */
+.foot{
+  border-top:1px solid var(--border);padding:16px 0 20px;
+  text-align:center;font-size:.7rem;color:var(--sub);line-height:1.75;
+}
+.foot strong{color:var(--cyan)}
+
+/* ── Section spacing ── */
+.scr{padding:22px 0 12px;display:flex;flex-direction:column;gap:12px}
+.sec-title{font-size:1rem;font-weight:900;margin-bottom:4px}
+.sec-sub{color:var(--sub);font-size:.8rem;line-height:1.5}
+
+/* ── Steps ── */
+.steps{display:flex;gap:6px;justify-content:center;margin-bottom:4px}
+.stp{width:26px;height:4px;border-radius:8px;background:var(--border);transition:.3s}
+.stp.on{background:var(--cyan)}
+
+/* ── Card ── */
+.card{background:var(--card);border:1px solid var(--border);border-radius:16px;padding:18px}
+.label{font-size:.68rem;font-weight:800;letter-spacing:1px;color:var(--sub);margin-bottom:10px;text-transform:uppercase}
+
+/* ── Buttons ── */
+.btn{
+  width:100%;padding:14px 16px;border:none;border-radius:13px;
+  font-size:.93rem;font-weight:800;display:flex;align-items:center;
+  justify-content:center;gap:8px;transition:all .2s;
+}
+.btn:disabled{opacity:.35;cursor:not-allowed;transform:none!important}
+.btn.cyan{background:linear-gradient(135deg,var(--cyan),#0099cc);color:#001a22}
+.btn.purple{background:linear-gradient(135deg,var(--purple),#7744cc);color:#fff}
+.btn.ghost{background:var(--card);border:1px solid var(--border);color:var(--sub)}
+.btn.ghost:hover{border-color:var(--sub);color:var(--text)}
+.btn.danger{background:rgba(255,77,109,.15);border:1px solid rgba(255,77,109,.3);color:var(--red)}
+.btn.sm{padding:9px 14px;font-size:.8rem;width:auto;border-radius:10px}
+.btn.cyan:not(:disabled):hover,.btn.purple:not(:disabled):hover{transform:translateY(-2px)}
+
+/* ── Home hero ── */
+.hero{padding:38px 0 28px;text-align:center}
+.hero-ico{font-size:3.2rem;margin-bottom:14px;line-height:1}
+.hero-title{font-size:1.9rem;font-weight:900;line-height:1.15;margin-bottom:10px}
+.hero-title .hl{background:linear-gradient(90deg,var(--cyan),var(--purple));
+  -webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text}
+.hero-sub{color:var(--sub);font-size:.88rem;line-height:1.6;margin-bottom:24px}
+.hero-pill{
+  display:inline-flex;align-items:center;gap:7px;
+  padding:7px 16px;border-radius:40px;
+  background:rgba(0,217,138,.08);border:1px solid rgba(0,217,138,.18);
+  color:var(--green);font-size:.78rem;font-weight:700;margin-bottom:28px;
+}
+.home-btns{display:flex;flex-direction:column;gap:12px;margin-bottom:24px}
+.specs{display:flex;flex-wrap:wrap;gap:7px;justify-content:center;margin-bottom:12px}
+.spec{font-size:.69rem;font-weight:700;color:var(--sub);
+  background:var(--card);border:1px solid var(--border);border-radius:20px;padding:4px 12px}
+
+/* ── Drop zone ── */
+.drop{border:2px dashed var(--border);border-radius:14px;padding:30px 16px;
+  text-align:center;background:var(--card2);transition:.2s;position:relative;overflow:hidden}
+.drop.over,.drop:hover{border-color:var(--cyan);background:rgba(0,200,240,.04)}
+.drop input{position:absolute;inset:0;opacity:0;cursor:pointer;width:100%;height:100%}
+.drop-ico{font-size:2rem;margin-bottom:8px}
+.drop-msg{font-size:.9rem;font-weight:800;margin-bottom:3px}
+.drop-hint{font-size:.74rem;color:var(--sub)}
+
+/* ── File list ── */
+.file-list{display:flex;flex-direction:column;gap:7px}
+.file-item{display:flex;align-items:center;gap:11px;
+  background:var(--card2);border:1px solid var(--border);border-radius:11px;padding:10px 12px}
+.file-ico{font-size:1.35rem;flex-shrink:0}
+.file-info{flex:1;min-width:0}
+.file-name{font-size:.83rem;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.file-sz{font-size:.7rem;color:var(--sub);margin-top:2px}
+.file-del{background:none;border:none;color:var(--sub);padding:5px;border-radius:8px;
+  font-size:.85rem;transition:color .2s;line-height:1}
+.file-del:hover{color:var(--red)}
+.file-summary{display:flex;justify-content:space-between;
+  padding:8px 2px;font-size:.77rem;color:var(--sub)}
+.file-summary strong{color:var(--text)}
+
+/* ── Code card ── */
+.code-card{text-align:center;padding:22px 18px}
+.code-digits{
+  font-family:'Courier New',monospace;font-size:3.3rem;font-weight:900;
+  letter-spacing:14px;color:var(--cyan);padding-left:14px;
+  text-shadow:0 0 26px rgba(0,200,240,.45);line-height:1;margin:8px 0 18px;
+}
+.copy-row{display:flex;gap:8px;justify-content:center;flex-wrap:wrap}
+.copy-btn{
+  display:flex;align-items:center;gap:5px;
+  background:var(--surface);border:1px solid var(--border);
+  color:var(--sub);padding:8px 14px;border-radius:10px;font-size:.78rem;font-weight:800;
+  transition:all .2s;
+}
+.copy-btn:hover{color:var(--text);border-color:var(--sub)}
+
+/* ── QR ── */
+.qr-row{display:flex;gap:11px;flex-wrap:wrap}
+.qr-card{flex:1;min-width:140px;background:var(--card2);border:1px solid var(--border);
+  border-radius:14px;padding:14px;text-align:center}
+.qr-card img{width:100%;max-width:200px;margin:0 auto;border-radius:8px;border:2px solid var(--border)}
+.qr-lbl{font-size:.72rem;font-weight:800;color:var(--sub);margin-top:8px}
+.qr-hint{font-size:.65rem;color:var(--sub);margin-top:3px}
+
+/* ── Connected users strip ── */
+.users-strip{display:flex;flex-direction:column;gap:6px}
+.user-row{
+  display:flex;align-items:center;gap:10px;
+  background:var(--card2);border:1px solid var(--border);border-radius:10px;padding:9px 12px;
+}
+.user-av{
+  width:28px;height:28px;border-radius:8px;flex-shrink:0;
+  background:linear-gradient(135deg,var(--cyan),var(--purple));
+  display:flex;align-items:center;justify-content:center;font-size:.75rem;font-weight:900;color:#fff;
+}
+.user-info{flex:1;min-width:0}
+.user-name{font-size:.82rem;font-weight:700}
+.user-st{font-size:.68rem;color:var(--sub);margin-top:1px}
+.user-pct{font-size:.73rem;font-weight:700;color:var(--cyan);flex-shrink:0}
+.user-bar-wrap{height:3px;border-radius:999px;background:rgba(255,255,255,.06);margin-top:5px;overflow:hidden}
+.user-bar{height:100%;border-radius:999px;width:0;
+  background:linear-gradient(90deg,var(--cyan),var(--purple));transition:width .3s}
+
+/* ── Chat tabs ── */
+.tab-bar{display:flex;gap:6px;background:var(--card2);border:1px solid var(--border);
+  border-radius:12px;padding:5px}
+.tab-btn{
+  flex:1;padding:10px;border:none;border-radius:9px;font-size:.85rem;font-weight:800;
+  background:transparent;color:var(--sub);transition:all .2s;
+}
+.tab-btn.on{background:var(--card);color:var(--text);box-shadow:0 2px 8px rgba(0,0,0,.4)}
+.tab-btn.on.t-chat{color:var(--cyan)}
+.tab-btn.on.t-files{color:var(--purple)}
+
+/* ── Chat feed ── */
+.chat-wrap{display:flex;flex-direction:column;gap:0}
+.chat-feed{
+  display:flex;flex-direction:column;gap:8px;
+  max-height:260px;overflow-y:auto;padding:4px 2px 10px;
+}
+.chat-feed::-webkit-scrollbar{width:3px}
+.chat-feed::-webkit-scrollbar-thumb{background:var(--border);border-radius:3px}
+.bubble{
+  max-width:88%;padding:9px 12px;border-radius:14px;
+  border:1px solid var(--border);background:var(--card2);
+}
+.bubble.me{align-self:flex-end;background:rgba(160,102,255,.12);border-color:rgba(160,102,255,.22)}
+.bubble .who{font-size:.67rem;color:var(--sub);margin-bottom:3px;font-weight:800;letter-spacing:.3px}
+.bubble .txt{font-size:.85rem;line-height:1.45;white-space:pre-wrap;word-break:break-word}
+.bubble .ts{font-size:.64rem;color:var(--sub);margin-top:4px;text-align:right}
+.bubble .url-actions{display:flex;gap:6px;flex-wrap:wrap;margin-top:7px}
+
+.chat-input-row{display:flex;gap:8px;align-items:flex-end}
+.chat-input-row textarea{
+  flex:1;background:var(--card2);color:var(--text);
+  border:1px solid var(--border);border-radius:11px;padding:10px 12px;
+  outline:none;min-height:44px;max-height:120px;font-size:.85rem;
+  transition:border-color .2s;
+}
+.chat-input-row textarea:focus{border-color:var(--cyan)}
+.send-btn{
+  background:linear-gradient(135deg,var(--cyan),#0099cc);
+  border:none;border-radius:11px;padding:10px 14px;
+  color:#001a22;font-size:1.1rem;flex-shrink:0;
+  transition:all .2s;line-height:1;
+}
+.send-btn:hover{transform:translateY(-1px)}
+
+/* ── Recv progress ── */
+.prog-list{display:flex;flex-direction:column;gap:10px}
+.prog-row{display:flex;flex-direction:column;gap:4px}
+.prog-name{font-size:.82rem;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.prog-meta{display:flex;justify-content:space-between;font-size:.7rem;color:var(--sub);margin-top:2px}
+.prog-bar-wrap{height:5px;border-radius:999px;background:rgba(255,255,255,.06);overflow:hidden;margin-top:5px}
+.prog-bar{height:100%;width:0;border-radius:999px;
+  background:linear-gradient(90deg,var(--purple),var(--cyan));transition:width .22s}
+.overall-card{display:flex;flex-direction:column;gap:10px}
+.ov-top{display:flex;justify-content:space-between;align-items:baseline}
+.ov-title{font-size:.76rem;font-weight:800;color:var(--sub)}
+.ov-pct{font-size:1.3rem;font-weight:900;color:var(--cyan)}
+.ov-bar-wrap{height:8px;border-radius:999px;background:rgba(255,255,255,.06);overflow:hidden}
+.ov-bar{height:100%;width:0;border-radius:999px;
+  background:linear-gradient(90deg,var(--cyan),var(--purple),var(--green));transition:width .3s}
+.metrics{display:flex;gap:7px;flex-wrap:wrap}
+.metric{padding:4px 10px;border:1px solid var(--border);background:rgba(255,255,255,.04);
+  border-radius:20px;font-size:.7rem;font-weight:800;color:var(--sub)}
+.metric span{color:var(--text)}
+
+/* ── Notice ── */
+.notice{display:flex;gap:9px;align-items:flex-start;border-radius:11px;
+  padding:11px 14px;font-size:.81rem;line-height:1.5}
+.n-info{background:rgba(68,136,255,.1);border:1px solid rgba(68,136,255,.2);color:#b4c6ff}
+.n-ok  {background:rgba(0,217,138,.1);border:1px solid rgba(0,217,138,.2);color:var(--green)}
+.n-err {background:rgba(255,77,109,.1);border:1px solid rgba(255,77,109,.2);color:#ff9aae}
+.n-warn{background:rgba(255,187,51,.1);border:1px solid rgba(255,187,51,.2);color:var(--amber)}
+
+/* ── OTP ── */
+.otp-wrap{display:flex;gap:9px;justify-content:center;margin:14px 0}
+.otp-box{
+  width:60px;height:66px;border:2px solid var(--border);border-radius:12px;
+  background:var(--card2);color:var(--text);font-size:1.8rem;font-weight:900;
+  text-align:center;font-family:'Courier New',monospace;line-height:66px;
+  transition:border-color .2s;user-select:none;
+}
+.otp-box.filled{border-color:var(--cyan);color:var(--cyan)}
+.otp-hidden{position:fixed;opacity:0;pointer-events:none;width:1px;height:1px;top:0;left:0}
+
+/* ── QR Scanner ── */
+#qrReader{width:100%;max-width:300px;margin:0 auto}
+#qrReader video{border-radius:10px!important}
+
+/* ── Request popup modal ── */
+.overlay{
+  position:fixed;inset:0;background:rgba(5,5,20,.75);
+  backdrop-filter:blur(8px);z-index:80;
+  display:flex;align-items:center;justify-content:center;padding:20px;
+}
+.modal{
+  width:min(420px,100%);background:var(--card);border:1px solid var(--border);
+  border-radius:18px;padding:22px;
+}
+.modal h3{font-size:1rem;font-weight:900;margin-bottom:6px}
+.modal p{font-size:.82rem;color:var(--sub);line-height:1.5;margin-bottom:16px}
+.modal-row{display:flex;gap:9px}
+
+/* ── Waiting spinner ── */
+.spinner-wrap{display:flex;flex-direction:column;align-items:center;gap:10px;
+  padding:22px;color:var(--sub);font-size:.82rem}
+.spinner{width:28px;height:28px;border:3px solid var(--border);
+  border-top-color:var(--cyan);border-radius:50%;animation:spin 1s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+
+/* ── Toast ── */
+#toasts{
+  position:fixed;bottom:18px;left:50%;transform:translateX(-50%);
+  display:flex;flex-direction:column;gap:7px;
+  width:calc(100% - 32px);max-width:380px;z-index:90;pointer-events:none;
+}
+.toast{
+  background:var(--card);border:1px solid var(--border);
+  border-left:3px solid var(--cyan);border-radius:11px;
+  padding:10px 14px;font-size:.81rem;font-weight:700;text-align:center;
+  animation:tIn .22s ease;pointer-events:auto;
+}
+@keyframes tIn{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:translateY(0)}}
+
+/* ── Smart scan toggle ── */
+.scan-toggle{
+  display:flex;background:var(--card2);border:1px solid var(--border);
+  border-radius:12px;padding:4px;gap:4px;margin-bottom:14px;
+}
+.scan-toggle button{
+  flex:1;padding:9px;border:none;border-radius:9px;font-size:.82rem;font-weight:800;
+  background:transparent;color:var(--sub);transition:all .2s;
+}
+.scan-toggle button.on{background:var(--card);color:var(--text)}
+
+/* ── Responsive ── */
+@media(max-width:400px){
+  .code-digits{font-size:2.8rem;letter-spacing:10px;padding-left:10px}
+  .otp-box{width:50px;height:58px;font-size:1.55rem;line-height:58px}
+  .qr-row{flex-direction:column}
+}
+@media(min-width:600px){
+  .hero-title{font-size:2.4rem}
+  .home-btns{flex-direction:row}
+  .home-btns .btn{max-width:260px}
+  .qr-row .qr-card{min-width:160px}
+}
+</style>
+</head>
+<body>
+
+<!-- ═══════════════════════════════════════════════════
+     HOME PAGE
+═══════════════════════════════════════════════════ -->
+<div id="pgHome" class="page active">
+  <nav class="nav"><div class="wrap nav-inner">
+    <div class="nav-logo">ShareAnywhere</div>
+    <div class="nav-sp"></div>
+    <div class="net-chip" id="homeNetChip">
+      <div class="ndot" id="homeNDot"></div>
+      <span id="homeNetLbl">Detecting...</span>
+    </div>
+  </div></nav>
+
+  <div class="wrap flex-grow">
+    <div class="hero">
+      <div class="hero-ico">⚡</div>
+      <div class="hero-title">Share Files &amp;<br><span class="hl">Chat Instantly</span></div>
+      <div class="hero-sub">Direct device-to-device transfer.<br>No storage. No account. Zero upload.</div>
+      <div class="hero-pill">🔒 Files never stored on server</div>
+      <div class="home-btns">
+        <button class="btn cyan" onclick="goShare()">⚡ Share</button>
+        <button class="btn purple" onclick="goReceive()">📥 Receive</button>
+      </div>
+      <div class="specs">
+        <div class="spec">📦 Multiple files</div>
+        <div class="spec">👥 Multi-receiver</div>
+        <div class="spec">💬 P2P Chat</div>
+        <div class="spec">📱 QR Scan</div>
+        <div class="spec">🗑️ Auto-deleted</div>
+        <div class="spec">🔌 Accept/Reject</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="wrap">
+    <div class="foot">
+      <div><strong>ShareAnywhere</strong> — P2P File Share &amp; Chat</div>
+      <div>Made with ❤️ · Dev ~ <strong>Mr DK CHAUDHARY</strong></div>
+      <div>@THEDARKGEEKDC · All Rights Reserved</div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════
+     SHARE PAGE
+═══════════════════════════════════════════════════ -->
+<div id="pgSend" class="page">
+  <nav class="nav"><div class="wrap nav-inner">
+    <button class="nav-back" onclick="goHome()">‹ Back</button>
+    <div class="nav-logo">ShareAnywhere</div>
+    <div class="nav-sp"></div>
+    <div class="ndot on" id="sendNDot"></div>
+  </div></nav>
+
+  <div class="wrap flex-grow">
+
+    <!-- Step 1: Create room -->
+    <div class="scr" id="stepCreate">
+      <div class="steps"><div class="stp on"></div><div class="stp"></div><div class="stp"></div></div>
+      <div class="sec-title">Create a Share Room</div>
+      <div class="sec-sub">Start a room then choose to chat or share files.</div>
+
+      <div class="drop" id="drop">
+        <input type="file" id="fileInput" multiple onchange="onFiles(this.files)">
+        <div class="drop-ico">🗂️</div>
+        <div class="drop-msg">Add files (optional)</div>
+        <div class="drop-hint">Tap to browse or drag &amp; drop</div>
+      </div>
+
+      <div class="file-list" id="fileList"></div>
+      <div class="file-summary hidden" id="fileSummary">
+        <span><strong id="fileCount">0</strong> files</span>
+        <span>Total: <strong id="fileTotal">0 B</strong></span>
+      </div>
+
+      <button class="btn ghost" onclick="clearFiles()">🗑 Clear files</button>
+      <button class="btn cyan" id="btnCreate" onclick="createRoom()">Create Room →</button>
+    </div>
+
+    <!-- Step 2: Active room -->
+    <div class="scr hidden" id="stepRoom">
+      <div class="steps"><div class="stp on"></div><div class="stp on"></div><div class="stp half" id="stp3"></div></div>
+
+      <!-- Code + QR -->
+      <div class="card code-card">
+        <div class="label">ROOM CODE</div>
+        <div class="code-digits" id="roomCodeDisp">----</div>
+        <div class="copy-row">
+          <button class="copy-btn" onclick="copyCode()">📋 Copy Code</button>
+          <button class="copy-btn" onclick="copyLink()">🔗 Copy Link</button>
+        </div>
+      </div>
+
+      <div class="qr-row" id="qrRow"></div>
+
+      <!-- Connected users -->
+      <div class="card">
+        <div class="label">Connected <span id="connCount" style="color:var(--cyan)">0</span></div>
+        <div class="users-strip" id="userStrip"></div>
+        <div id="connEmpty" class="spinner-wrap">
+          <div class="spinner"></div>
+          Waiting for receiver to connect...
+        </div>
+      </div>
+
+      <!-- Chat / Files tabs -->
+      <div class="tab-bar">
+        <button class="tab-btn t-chat on" id="tabChat" onclick="switchTab('chat')">💬 Chat</button>
+        <button class="tab-btn t-files" id="tabFiles" onclick="switchTab('files')">📁 Share Files</button>
+      </div>
+
+      <!-- Chat panel -->
+      <div class="card" id="panelChat">
+        <div class="chat-feed" id="sendFeed"></div>
+        <div style="height:10px"></div>
+        <div class="chat-input-row">
+          <textarea id="sendMsgBox" rows="1" placeholder="Type a message or paste a URL..."
+            onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();sendChat()}"
+            oninput="autoResize(this)"></textarea>
+          <button class="send-btn" onclick="sendChat()">➤</button>
+        </div>
+      </div>
+
+      <!-- Files panel -->
+      <div class="card hidden" id="panelFiles">
+        <div class="label">Send Files to All Receivers</div>
+        <div class="drop" id="drop2">
+          <input type="file" id="fileInput2" multiple onchange="onFiles2(this.files)">
+          <div class="drop-ico">🗂️</div>
+          <div class="drop-msg">Add more files</div>
+          <div class="drop-hint">Tap to browse or drag &amp; drop</div>
+        </div>
+        <div class="file-list" id="fileList2" style="margin-top:10px"></div>
+        <div class="file-summary hidden" id="fileSummary2">
+          <span><strong id="fileCount2">0</strong> files</span>
+          <span>Total: <strong id="fileTotal2">0 B</strong></span>
+        </div>
+        <div style="height:8px"></div>
+        <button class="btn purple" id="btnSendFiles" onclick="sendFilesNow()" disabled>📤 Send Files to All</button>
+        <div style="height:6px"></div>
+        <button class="btn ghost" onclick="clearFiles2()">🗑 Clear</button>
+      </div>
+
+      <div style="font-size:.7rem;color:var(--sub);text-align:center;padding:6px 0">
+        🔒 Files go directly to receiver — nothing stored on server
+      </div>
+    </div>
+  </div>
+
+  <div class="wrap">
+    <div class="foot">
+      <div>Made with ❤️ · <strong>Mr DK CHAUDHARY</strong> · @THEDARKGEEKDC</div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════
+     RECEIVE PAGE
+═══════════════════════════════════════════════════ -->
+<div id="pgRecv" class="page">
+  <nav class="nav"><div class="wrap nav-inner">
+    <button class="nav-back" onclick="goHome()">‹ Back</button>
+    <div class="nav-logo">ShareAnywhere</div>
+    <div class="nav-sp"></div>
+    <div class="ndot on"></div>
+  </div></nav>
+
+  <div class="wrap flex-grow">
+
+    <!-- Step: Enter code -->
+    <div class="scr" id="stepCode">
+      <div class="steps"><div class="stp on"></div><div class="stp"></div><div class="stp"></div></div>
+      <div class="sec-title">Connect to Sender</div>
+      <div class="sec-sub">Enter the 4-digit code or scan QR.</div>
+
+      <!-- Smart toggle -->
+      <div class="scan-toggle">
+        <button class="on" id="toggleCode" onclick="showMode('code')">⌨️ Enter Code</button>
+        <button id="toggleScan" onclick="showMode('scan')">📷 Scan QR</button>
+      </div>
+
+      <!-- Code panel -->
+      <div id="codePanel">
+        <input class="otp-hidden" type="tel" id="otpReal" maxlength="4"
+          inputmode="numeric" autocomplete="one-time-code"
+          oninput="syncOtp(this.value)"
+          onpaste="setTimeout(()=>syncOtp(document.getElementById('otpReal').value),10)"
+          onkeydown="if(event.key==='Enter')doJoin()">
+        <div class="otp-wrap" onclick="focusOtp()" ontouchend="focusOtp()">
+          <div class="otp-box" id="ob0">&nbsp;</div>
+          <div class="otp-box" id="ob1">&nbsp;</div>
+          <div class="otp-box" id="ob2">&nbsp;</div>
+          <div class="otp-box" id="ob3">&nbsp;</div>
+        </div>
+      </div>
+
+      <!-- Scan panel -->
+      <div id="scanPanel" class="hidden">
+        <div class="card">
+          <div class="label">POINT CAMERA AT QR CODE</div>
+          <div id="qrReader"></div>
+        </div>
+        <div style="height:8px"></div>
+      </div>
+
+      <button class="btn purple" id="btnJoin" onclick="doJoin()" disabled>Connect to Sender →</button>
+
+      <div class="notice n-info" style="margin-top:4px">
+        <span>💡</span>
+        <span>Get the 4-digit code from the sender's screen.</span>
+      </div>
+    </div>
+
+    <!-- Step: Waiting for approval -->
+    <div class="scr hidden" id="stepWait">
+      <div class="steps"><div class="stp on"></div><div class="stp half"></div><div class="stp"></div></div>
+      <div class="sec-title">Waiting for approval</div>
+      <div class="card">
+        <div class="spinner-wrap">
+          <div class="spinner"></div>
+          <span>Request sent. Waiting for sender to accept...</span>
+        </div>
+      </div>
+      <button class="btn ghost" onclick="cancelJoin()">Cancel</button>
+    </div>
+
+    <!-- Step: Progress -->
+    <div class="scr hidden" id="stepRecvProg">
+      <div class="steps"><div class="stp on"></div><div class="stp on"></div><div class="stp" id="stp3r"></div></div>
+      <div class="sec-title">Connected</div>
+
+      <div class="notice n-info" id="recvNotice">
+        <span>⏳</span><span>Connecting to sender...</span>
+      </div>
+
+      <!-- File progress -->
+      <div class="card hidden" id="recvProgCard">
+        <div class="label">FILES</div>
+        <div class="prog-list" id="recvFileRows"></div>
+      </div>
+
+      <!-- Overall -->
+      <div class="card hidden" id="ovCard">
+        <div class="overall-card">
+          <div class="ov-top">
+            <span class="ov-title">OVERALL PROGRESS</span>
+            <span class="ov-pct" id="ovPct">0%</span>
+          </div>
+          <div class="ov-bar-wrap"><div class="ov-bar" id="ovBar"></div></div>
+          <div class="metrics">
+            <div class="metric">⚡ <span id="speedVal">—</span></div>
+            <div class="metric">⏱ <span id="etaVal">—</span></div>
+            <div class="metric">📦 <span id="recvdVal">0 B</span></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Chat -->
+      <div class="card">
+        <div class="label">CHAT</div>
+        <div class="chat-feed" id="recvFeed"></div>
+        <div style="height:10px"></div>
+        <div class="chat-input-row">
+          <textarea id="recvMsgBox" rows="1" placeholder="Type a message..."
+            onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();sendChatRecv()}"
+            oninput="autoResize(this)"></textarea>
+          <button class="send-btn" onclick="sendChatRecv()">➤</button>
+        </div>
+      </div>
+
+      <div style="font-size:.7rem;color:var(--sub);text-align:center;padding:4px 0">
+        🔒 Nothing stored on server · Auto-deleted after transfer
+      </div>
+    </div>
+  </div>
+
+  <div class="wrap">
+    <div class="foot">
+      <div>Made with ❤️ · <strong>Mr DK CHAUDHARY</strong> · @THEDARKGEEKDC</div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ INCOMING REQUEST MODAL ═══════════════════════ -->
+<div class="overlay hidden" id="reqModal">
+  <div class="modal">
+    <h3>📲 Incoming Connection</h3>
+    <p>Someone wants to join your room.<br>Accept to start sharing.</p>
+    <div class="modal-row">
+      <button class="btn purple" style="flex:1" onclick="decideReq('accept')">✅ Accept</button>
+      <button class="btn danger" style="flex:1" onclick="decideReq('reject')">❌ Reject</button>
+    </div>
+  </div>
+</div>
+
+<div id="toasts"></div>
+
+<!-- ═══════════════════════════════════════════════════
+     JAVASCRIPT
+═══════════════════════════════════════════════════ -->
+<script>
+// ── Constants ────────────────────────────────────────────────────
+const BASE  = window.location.origin;
+const CHUNK = 256  * 1024;
+const BLOCK = 4    * 1024 * 1024;
+const MAX_W = 5    * 1024 * 1024 * 1024;
+const MAX_I = 500  * 1024 * 1024;
+const ICE   = { iceServers:[
+  {urls:'stun:stun.l.google.com:19302'},
+  {urls:'stun:stun1.l.google.com:19302'},
+  {urls:'stun:stun.cloudflare.com:3478'},
+]};
+
+// ── State ─────────────────────────────────────────────────────────
+let socket;
+let netMode = 'inet', localIP = null, localPort = 5683;
+
+// Sender
+let selFiles = [], selFiles2 = [], roomCode = null;
+let peers = {}, peerNum = 0;
+
+// Receiver
+let rPC = null, senderSid = null;
+let rBufs = {}, rPendHdr = null;
+let rTotal = 0, rTotalSz = 0;
+let speedTmr = null, lastB = 0, lastT = 0;
+let pendingReqId = null;
+
+// Scanner
+let html5Qr = null, scannerOpen = false;
+
+// ── Boot ──────────────────────────────────────────────────────────
+window.addEventListener('load', () => {
+  connectSocket();
+  setupDropZones();
+  detectNetwork();
+
+  // Deep-link: ?code=1234
+  const p = new URLSearchParams(location.search);
+  const c = p.get('code');
+  if (c) {
+    setTimeout(() => {
+      goReceive();
+      syncOtp(c);
+      document.getElementById('otpReal').value = c;
+      setTimeout(doJoin, 500);
+    }, 400);
+  }
+});
+
+window.addEventListener('beforeunload', () => {
+  closeAllPeers();
+  if (rPC) try { rPC.close(); } catch(e){}
+});
+
+// ── Network detection ─────────────────────────────────────────────
+async function detectNetwork() {
+  try {
+    const r = await fetch('/api/network');
+    const d = await r.json();
+    netMode  = d.mode;
+    localIP  = d.local_ip;
+    localPort = d.port;
+    updateNetChip(d.mode, d.label);
+  } catch(e) {
+    updateNetChip('inet', 'Internet');
+  }
+}
+
+function updateNetChip(mode, label) {
+  const chip = document.getElementById('homeNetChip');
+  const dot  = document.getElementById('homeNDot');
+  const lbl  = document.getElementById('homeNetLbl');
+  if (chip) chip.className = `net-chip ${mode}`;
+  if (dot)  dot.className  = `ndot ${mode === 'wifi' ? 'on' : 'inet-on'}`;
+  if (lbl)  lbl.textContent = label;
+}
+
+// ── Socket ────────────────────────────────────────────────────────
+function connectSocket() {
+  socket = io(BASE, { transports: ['websocket', 'polling'] });
+  socket.on('connect',    () => updateAllDots(true));
+  socket.on('disconnect', () => updateAllDots(false));
+
+  // Sender events
+  socket.on('room_created',    d => onRoomCreated(d.code));
+  socket.on('incoming_request',d => onIncomingReq(d));
+  socket.on('webrtc_answer',   d => onSenderAnswer(d));
+  socket.on('receiver_joined', d => onReceiverJoined(d.receiver_sid));
+  socket.on('receiver_left',   d => onReceiverLeft(d.sid));
+
+  // Receiver events
+  socket.on('waiting_for_approval', d => onWaiting(d));
+  socket.on('request_accepted',     d => onAccepted(d));
+  socket.on('request_rejected',     () => onRejected());
+  socket.on('request_canceled',     () => onRejected());
+  socket.on('webrtc_offer',         d => onRecvOffer(d));
+  socket.on('sender_left',          () => setNotice('err','❌ Sender disconnected.'));
+
+  // Shared
+  socket.on('webrtc_ice', d => onIce(d));
+  socket.on('error',      d => toast(d.msg, 'err'));
+}
+
+function updateAllDots(on) {
+  document.querySelectorAll('.ndot').forEach(d => {
+    if (d.classList.contains('inet-on')) return;
+    d.classList.toggle('on', on);
+  });
+}
+
+// ── Navigation ────────────────────────────────────────────────────
+function showPage(id) {
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  document.getElementById(id).classList.add('active');
+}
+function goHome()    { closeAllPeers(); if(rPC){try{rPC.close();}catch(e){}} resetAll(); showPage('pgHome'); history.replaceState({},'','/'); }
+function goShare()   { showPage('pgSend');  show('stepCreate'); hide('stepRoom'); history.replaceState({},'','/?page=send'); }
+function goReceive() { showPage('pgRecv');  show('stepCode');   hide('stepWait'); hide('stepRecvProg'); history.replaceState({},'','/?page=recv'); }
+
+// ── File picking (pre-room) ───────────────────────────────────────
+function setupDropZones() {
+  ['drop','drop2'].forEach(id => {
+    const el = document.getElementById(id);
+    if (!el) return;
+    el.addEventListener('dragover',  e => { e.preventDefault(); el.classList.add('over'); });
+    el.addEventListener('dragleave', () => el.classList.remove('over'));
+    el.addEventListener('drop', e => {
+      e.preventDefault(); el.classList.remove('over');
+      id === 'drop' ? onFiles(e.dataTransfer.files) : onFiles2(e.dataTransfer.files);
+    });
+  });
+}
+
+function onFiles(fl) {
+  const max = netMode === 'wifi' ? MAX_W : MAX_I;
+  for (const f of fl) {
+    if (f.size > max) { toast(`"${f.name}" too large`, 'warn'); continue; }
+    selFiles.push(f);
+  }
+  renderFiles();
+}
+function clearFiles() { selFiles = []; document.getElementById('fileInput').value=''; renderFiles(); }
+function removeFile(i) { selFiles.splice(i,1); renderFiles(); }
+function renderFiles() {
+  const tot = selFiles.reduce((a,f) => a+f.size, 0);
+  document.getElementById('fileList').innerHTML = selFiles.map((f,i) => fileItemHTML(f,i,'removeFile')).join('');
+  const has = selFiles.length > 0;
+  tog('fileSummary', !has);
+  if(has) { $('fileCount').textContent = selFiles.length; $('fileTotal').textContent = fmtSz(tot); }
+}
+
+// File picking (in-room panel)
+function onFiles2(fl) {
+  const max = netMode === 'wifi' ? MAX_W : MAX_I;
+  for (const f of fl) {
+    if (f.size > max) { toast(`"${f.name}" too large`,'warn'); continue; }
+    selFiles2.push(f);
+  }
+  renderFiles2();
+}
+function clearFiles2() { selFiles2=[]; document.getElementById('fileInput2').value=''; renderFiles2(); }
+function removeFile2(i) { selFiles2.splice(i,1); renderFiles2(); }
+function renderFiles2() {
+  const tot = selFiles2.reduce((a,f)=>a+f.size,0);
+  document.getElementById('fileList2').innerHTML = selFiles2.map((f,i) => fileItemHTML(f,i,'removeFile2')).join('');
+  const has = selFiles2.length > 0;
+  tog('fileSummary2', !has);
+  if(has) { $('fileCount2').textContent=selFiles2.length; $('fileTotal2').textContent=fmtSz(tot); }
+  $('btnSendFiles').disabled = !has || Object.keys(peers).length===0;
+}
+
+function fileItemHTML(f,i,delFn) {
+  return `<div class="file-item">
+    <span class="file-ico">${fIcon(f.name)}</span>
+    <div class="file-info"><div class="file-name">${esc(f.name)}</div><div class="file-sz">${fmtSz(f.size)}</div></div>
+    <button class="file-del" onclick="${delFn}(${i})">✕</button>
+  </div>`;
+}
+
+// ── Create Room ───────────────────────────────────────────────────
+function createRoom() {
+  // Move pre-selected files into selFiles2 for in-room panel
+  if (selFiles.length) { selFiles2 = [...selFiles]; renderFiles2(); }
+  selFiles = [];
+  const btn = $('btnCreate');
+  btn.disabled = true; btn.textContent = '⏳ Creating...';
+  socket.emit('create_room');
+}
+
+function onRoomCreated(code) {
+  roomCode = code;
+  $('roomCodeDisp').textContent = code;
+  buildQR(code);
+  hide('stepCreate'); show('stepRoom');
+  $('btnCreate').disabled = false; $('btnCreate').textContent = 'Create Room →';
+}
+
+function buildQR(code) {
+  const inetURL = `${BASE}/?code=${code}`;
+  let html = '';
+  if (netMode === 'wifi' && localIP) {
+    const wifiURL = `http://${localIP}:${localPort}/?code=${code}`;
+    html += qrCardHTML(wifiURL,'📡 WiFi QR','Same network');
+    html += qrCardHTML(inetURL,'🌐 Internet QR','Any network');
+  } else {
+    html += qrCardHTML(inetURL,'🌐 Share QR','Scan to connect');
+  }
+  $('qrRow').innerHTML = html;
+}
+function qrCardHTML(url,lbl,hint) {
+  return `<div class="qr-card">
+    <img src="/qr?d=${encodeURIComponent(url)}&s=9" alt="QR" loading="lazy">
+    <div class="qr-lbl">${lbl}</div><div class="qr-hint">${hint}</div>
+  </div>`;
+}
+
+// ── Tabs (chat / files) ───────────────────────────────────────────
+function switchTab(t) {
+  $('tabChat').classList.toggle('on', t==='chat');
+  $('tabFiles').classList.toggle('on', t==='files');
+  t==='chat' ? (show('panelChat'),hide('panelFiles')) : (show('panelFiles'),hide('panelChat'));
+}
+
+// ── Incoming request modal (Sender side) ──────────────────────────
+let pendingModalReqId = null;
+
+function onIncomingReq(d) {
+  pendingModalReqId = d.request_id;
+  show('reqModal');
+}
+function decideReq(dec) {
+  if (!pendingModalReqId) return;
+  socket.emit('request_decision', { request_id: pendingModalReqId, decision: dec });
+  pendingModalReqId = null;
+  hide('reqModal');
+  if (dec === 'reject') toast('Connection rejected.', 'warn');
+}
+
+// ── Receiver joined (Sender side) ────────────────────────────────
+async function onReceiverJoined(sid) {
+  peerNum++;
+  const num = peerNum;
+  addUserRow(sid, num);
+  hide('connEmpty');
+  $('connCount').textContent = peerNum;
+  $('btnSendFiles').disabled = selFiles2.length === 0;
+  await initSenderPeer(sid, num);
+}
+
+async function initSenderPeer(sid, num) {
+  const pc = new RTCPeerConnection(ICE);
+  const dc = pc.createDataChannel('sa', { ordered: true });
+  dc.bufferedAmountLowThreshold = CHUNK * 2;
+  peers[sid] = { pc, dc, sent: 0, total: 0, num, cancelled: false };
+
+  dc.onopen  = () => {
+    setUserSt(sid, 'Connected ✅', 'active');
+    // Send any pending files automatically
+    if (selFiles2.length > 0) sendFilesToPeer(sid);
+  };
+  dc.onerror = () => setUserSt(sid, 'Error', 'lost');
+  dc.onclose = () => { if(peers[sid]) setUserSt(sid,'Closed','lost'); };
+
+  // Handle incoming data (chat from receiver)
+  dc.onmessage = e => {
+    if (typeof e.data === 'string') {
+      const m = JSON.parse(e.data);
+      if (m.t === 'chat') appendChat('sendFeed', m.msg, 'Receiver '+peers[sid]?.num, false);
+    }
+  };
+
+  pc.onicecandidate = e => { if(e.candidate) socket.emit('webrtc_ice',{to:sid,candidate:e.candidate}); };
+  pc.onconnectionstatechange = () => {
+    if(['failed','disconnected'].includes(pc.connectionState)) setUserSt(sid,'Lost','lost');
+  };
+
+  const offer = await pc.createOffer();
+  await pc.setLocalDescription(offer);
+  socket.emit('webrtc_offer', { to: sid, offer: pc.localDescription });
+}
+
+async function onSenderAnswer(d) {
+  const p = peers[d.from];
+  if (p) await p.pc.setRemoteDescription(new RTCSessionDescription(d.answer));
+}
+
+function onReceiverLeft(sid) {
+  if (!peers[sid]) return;
+  peers[sid].cancelled = true;
+  setUserSt(sid,'Disconnected','lost');
+  try { peers[sid].pc.close(); } catch(e){}
+  delete peers[sid];
+  const n = Object.keys(peers).length;
+  $('connCount').textContent = n;
+  if (n===0) show('connEmpty');
+}
+
+// ── Sender: send files ────────────────────────────────────────────
+function sendFilesNow() {
+  // Send to ALL connected peers
+  for (const sid in peers) {
+    if (peers[sid].dc.readyState === 'open') sendFilesToPeer(sid);
+    else toast('Receiver not ready yet.','warn');
+  }
+}
+
+async function sendFilesToPeer(sid) {
+  const p = peers[sid]; if(!p || !selFiles2.length) return;
+  const files = [...selFiles2];
+  const total = files.reduce((a,f)=>a+f.size,0);
+  p.total = total || 1; p.sent = 0;
+  setUserSt(sid,'Sending files...','active');
+
+  const safeSend = (data) => {
+    try { if(p.dc.readyState!=='open') return false; p.dc.send(data); return true; } catch(e){ return false; }
+  };
+
+  safeSend(JSON.stringify({t:'meta',totalSize:total,
+    files:files.map((f,i)=>({index:i,name:f.name,size:f.size,mime:f.type||'application/octet-stream'}))}));
+
+  for (let i=0; i<files.length; i++) {
+    if(!peers[sid]||peers[sid].cancelled) return;
+    const ok = await sendOneFile(p.dc, files[i], i, sid, safeSend);
+    if(!ok) return;
+  }
+  safeSend(JSON.stringify({t:'all_done'}));
+  setUserSt(sid,'Done ✅','done'); setUserProg(sid,100);
+}
+
+async function sendOneFile(dc,file,idx,sid,safeSend) {
+  safeSend(JSON.stringify({t:'file_start',idx,name:file.name,size:file.size}));
+  let off = 0;
+  while(off < file.size) {
+    const buf = await file.slice(off, Math.min(off+BLOCK,file.size)).arrayBuffer();
+    let bo = 0;
+    while(bo < buf.byteLength) {
+      if(dc.bufferedAmount > CHUNK*8) {
+        await new Promise(res => {
+          const ch = () => { if(!peers[sid]||dc.readyState!=='open'){res();return;} if(dc.bufferedAmount<=CHUNK*2){res();return;} dc.onbufferedamountlow=()=>{dc.onbufferedamountlow=null;res();}; };
+          ch();
+        });
+      }
+      if(!peers[sid]||peers[sid].cancelled||dc.readyState!=='open') return false;
+      const chunk = buf.slice(bo, Math.min(bo+CHUNK,buf.byteLength));
+      if(!safeSend(JSON.stringify({t:'chunk',idx,offset:off+bo,sz:chunk.byteLength}))) return false;
+      if(!safeSend(chunk)) return false;
+      bo += chunk.byteLength;
+      if(peers[sid]){ peers[sid].sent += chunk.byteLength; setUserProg(sid, Math.min(99,Math.round(peers[sid].sent/peers[sid].total*100))); }
+    }
+    off += buf.byteLength;
+  }
+  safeSend(JSON.stringify({t:'file_done',idx}));
+  return true;
+}
+
+// ── Sender: Chat ──────────────────────────────────────────────────
+function sendChat() {
+  const box = $('sendMsgBox');
+  const msg = box.value.trim(); if(!msg) return;
+  box.value = ''; autoResize(box);
+  appendChat('sendFeed', msg, 'You', true);
+  for(const sid in peers) {
+    try { if(peers[sid].dc.readyState==='open') peers[sid].dc.send(JSON.stringify({t:'chat',msg})); } catch(e){}
+  }
+}
+
+// ── Sender UI helpers ─────────────────────────────────────────────
+function addUserRow(sid, num) {
+  const el = document.createElement('div');
+  el.className='user-row'; el.id=`ur-${sid}`;
+  el.innerHTML=`<div class="user-av">${num}</div>
+    <div class="user-info" style="flex:1;min-width:0">
+      <div class="user-name">Receiver ${num}</div>
+      <div class="user-st" id="ust-${sid}">Connecting...</div>
+      <div class="user-bar-wrap"><div class="user-bar" id="ub-${sid}"></div></div>
+    </div>
+    <div class="user-pct" id="up-${sid}">0%</div>`;
+  $('userStrip').appendChild(el);
+}
+function setUserSt(sid, txt, state) {
+  const s=$(`ust-${sid}`); if(s) s.textContent=txt;
+  const b=$(`ub-${sid}`);
+  if(b) b.style.background = state==='done'?'var(--green)':state==='lost'?'var(--red)':'linear-gradient(90deg,var(--cyan),var(--purple))';
+}
+function setUserProg(sid, pct) {
+  const b=$(`ub-${sid}`); if(b) b.style.width=pct+'%';
+  const p=$(`up-${sid}`); if(p) p.textContent=pct+'%';
+}
+
+// ── Receiver: OTP ─────────────────────────────────────────────────
+function focusOtp() {
+  const el=$('otpReal'); el.focus();
+  const len=el.value.length; el.setSelectionRange(len,len);
+}
+function syncOtp(raw) {
+  const digits=raw.replace(/\D/g,'').slice(0,4);
+  const inp=$('otpReal'); if(inp.value!==digits) inp.value=digits;
+  for(let i=0;i<4;i++){
+    const b=$(`ob${i}`);
+    b.textContent=digits[i]||'\u00a0';
+    b.classList.toggle('filled',!!digits[i]);
+  }
+  $('btnJoin').disabled=digits.length<4;
+}
+
+// ── QR scanner ────────────────────────────────────────────────────
+function showMode(mode) {
+  $('toggleCode').classList.toggle('on', mode==='code');
+  $('toggleScan').classList.toggle('on', mode==='scan');
+  if(mode==='code'){
+    show('codePanel'); hide('scanPanel');
+    stopScanner();
+    focusOtp();
+  } else {
+    hide('codePanel'); show('scanPanel');
+    startScanner();
+  }
+}
+
+function startScanner() {
+  if(scannerOpen) return;
+  html5Qr = new Html5Qrcode('qrReader');
+  html5Qr.start(
+    {facingMode:'environment'},
+    {fps:10, qrbox:{width:220,height:220}},
+    (text) => {
+      stopScanner();
+      // Extract code from URL or use as-is
+      let code = text.trim();
+      try {
+        const u = new URL(code);
+        code = new URLSearchParams(u.search).get('code') || code;
+      } catch(e){}
+      code = code.replace(/\D/g,'').slice(0,4);
+      if(code.length===4){
+        showMode('code');
+        syncOtp(code); $('otpReal').value=code;
+        setTimeout(doJoin, 300);
+      } else { toast('Invalid QR code','err'); }
+    },
+    () => {}
+  ).catch(e => { console.error('[QR]',e); toast('Camera error','err'); });
+  scannerOpen=true;
+}
+function stopScanner() {
+  if(!html5Qr||!scannerOpen) return;
+  html5Qr.stop().catch(()=>{});
+  scannerOpen=false;
+}
+
+// ── Receiver: Join ────────────────────────────────────────────────
+function doJoin() {
+  const code=$('otpReal').value.trim();
+  if(!/^\d{4}$/.test(code)){toast('Enter all 4 digits','warn');return;}
+  $('btnJoin').disabled=true; $('btnJoin').textContent='Connecting...';
+  socket.emit('join_room_request',{code});
+}
+function cancelJoin() {
+  pendingReqId=null;
+  hide('stepWait'); show('stepCode');
+  $('btnJoin').disabled=false; $('btnJoin').textContent='Connect to Sender →';
+}
+
+function onWaiting(d) {
+  pendingReqId=d.request_id;
+  hide('stepCode'); show('stepWait');
+}
+function onAccepted(d) {
+  senderSid=d.sender_sid;
+  hide('stepWait'); show('stepRecvProg');
+  // WebRTC offer comes next from sender
+}
+function onRejected() {
+  pendingReqId=null;
+  hide('stepWait'); show('stepCode');
+  $('btnJoin').disabled=false; $('btnJoin').textContent='Connect to Sender →';
+  syncOtp('');
+  setNotice('err','❌ Connection was rejected. Try again.');
+  show('stepCode'); hide('stepRecvProg');
+}
+
+// ── Receiver: WebRTC ──────────────────────────────────────────────
+async function onRecvOffer(d) {
+  senderSid=d.from;
+  rPC=new RTCPeerConnection(ICE);
+  rPC.onicecandidate=e=>{ if(e.candidate) socket.emit('webrtc_ice',{to:senderSid,candidate:e.candidate}); };
+  rPC.ondatachannel=e=>setupRecvDC(e.channel);
+  rPC.onconnectionstatechange=()=>{
+    const st=rPC.connectionState;
+    if(st==='connected') setNotice('ok','✅ Connected! Ready to receive.');
+    if(st==='failed')    setNotice('err','❌ Connection failed.');
+    if(st==='disconnected') setNotice('warn','⚠️ Connection interrupted...');
+  };
+  await rPC.setRemoteDescription(new RTCSessionDescription(d.offer));
+  const ans=await rPC.createAnswer();
+  await rPC.setLocalDescription(ans);
+  socket.emit('webrtc_answer',{to:senderSid,answer:rPC.localDescription});
+}
+
+function setupRecvDC(dc) {
+  dc.binaryType='arraybuffer';
+  dc.onmessage=e=>{
+    if(typeof e.data==='string') handleRecvCtrl(JSON.parse(e.data));
+    else                          handleRecvBin(e.data);
+  };
+  dc.onerror=err=>{ console.error('[RecvDC]',err); setNotice('err','❌ Data error.'); };
+}
+
+function handleRecvCtrl(m) {
+  switch(m.t) {
+    case 'meta':
+      rBufs={}; rTotalSz=m.totalSize; rTotal=0; lastB=0; lastT=Date.now();
+      m.files.forEach(f=>{ rBufs[f.index]={meta:f,chunks:[],got:0}; });
+      renderRecvFiles(m.files);
+      show('recvProgCard'); show('ovCard');
+      startSpeed();
+      break;
+    case 'chunk':
+      rPendHdr=m;
+      break;
+    case 'file_done':
+      markFileDone(m.idx);
+      break;
+    case 'all_done':
+      finalizeDownload();
+      break;
+    case 'chat':
+      appendChat('recvFeed', m.msg, 'Sender', false);
+      break;
+  }
+}
+
+function handleRecvBin(data) {
+  if(!rPendHdr) return;
+  const {idx}=rPendHdr; rPendHdr=null;
+  const buf=rBufs[idx]; if(!buf) return;
+  buf.chunks.push(data); buf.got+=data.byteLength; rTotal+=data.byteLength;
+
+  if(rTotalSz>0){
+    const pct=Math.round(rTotal/rTotalSz*100);
+    $('ovPct').textContent=pct+'%';
+    $('ovBar').style.width=pct+'%';
+  }
+  $('recvdVal').textContent=`${fmtSz(rTotal)} / ${fmtSz(rTotalSz)}`;
+
+  if(buf.meta.size>0){
+    const fp=Math.round(buf.got/buf.meta.size*100);
+    const fb=$(`rfb-${idx}`); if(fb) fb.style.width=fp+'%';
+    const fm=$(`rfm-${idx}`); if(fm) fm.textContent=`${fmtSz(buf.got)} / ${fmtSz(buf.meta.size)}`;
+  }
+}
+
+function markFileDone(idx) {
+  const fb=$(`rfb-${idx}`); if(fb) fb.style.width='100%';
+  const fm=$(`rfm-${idx}`); if(fm) fm.textContent='✅ Done';
+}
+
+async function finalizeDownload() {
+  stopSpeed();
+  $('stp3r').classList.add('on');
+  setNotice('ok','✅ Transfer done! Preparing download...');
+  const all=Object.values(rBufs);
+  if(all.length===1){
+    const f=all[0];
+    dlBlob(new Blob(f.chunks,{type:f.meta.mime}),f.meta.name);
+  } else {
+    setNotice('info','📦 Creating ZIP...');
+    const zip=new JSZip();
+    all.forEach(f=>zip.file(f.meta.name,new Blob(f.chunks)));
+    const blob=await zip.generateAsync(
+      {type:'blob',compression:'DEFLATE',compressionOptions:{level:1}},
+      m=>setNotice('info',`📦 ZIP ${m.percent.toFixed(0)}%`)
+    );
+    dlBlob(blob,'shared_files.zip');
+  }
+  setNotice('ok','🎉 Download started!');
+}
+
+function dlBlob(blob,name){
+  const url=URL.createObjectURL(blob);
+  const a=Object.assign(document.createElement('a'),{href:url,download:name});
+  document.body.appendChild(a); a.click(); document.body.removeChild(a);
+  setTimeout(()=>URL.revokeObjectURL(url),15000);
+}
+
+function renderRecvFiles(files){
+  $('recvFileRows').innerHTML=files.map(f=>`
+    <div class="prog-row">
+      <div class="prog-name">${fIcon(f.name)} ${esc(f.name)}</div>
+      <div class="prog-meta"><span id="rfm-${f.index}">0 B / ${fmtSz(f.size)}</span></div>
+      <div class="prog-bar-wrap"><div class="prog-bar" id="rfb-${f.index}"></div></div>
+    </div>`).join('');
+}
+
+// ── Receiver: Chat ────────────────────────────────────────────────
+function sendChatRecv() {
+  const box=$('recvMsgBox');
+  const msg=box.value.trim(); if(!msg) return;
+  box.value=''; autoResize(box);
+  appendChat('recvFeed',msg,'You',true);
+  if(rPC&&rPC.connectionState==='connected'){
+    // Find open DC
+    const conn=rPC.getSenders(); // won't work — we need to track the DC
+    // DC is in setupRecvDC — let's store it
+    if(window._recvDC&&window._recvDC.readyState==='open'){
+      try{ window._recvDC.send(JSON.stringify({t:'chat',msg})); }catch(e){}
+    }
+  }
+}
+
+// Store recv DC reference
+const _origSetupRecvDC=setupRecvDC;
+// Patch: store DC on window for chat
+function setupRecvDC(dc){
+  window._recvDC=dc;
+  dc.binaryType='arraybuffer';
+  dc.onmessage=e=>{
+    if(typeof e.data==='string') handleRecvCtrl(JSON.parse(e.data));
+    else                          handleRecvBin(e.data);
+  };
+  dc.onerror=err=>{ console.error('[RecvDC]',err); setNotice('err','❌ Data error.'); };
+}
+
+// ── ICE relay ─────────────────────────────────────────────────────
+async function onIce(d){
+  if(peers[d.from]){try{await peers[d.from].pc.addIceCandidate(new RTCIceCandidate(d.candidate));}catch(e){}return;}
+  if(rPC&&d.from===senderSid){try{await rPC.addIceCandidate(new RTCIceCandidate(d.candidate));}catch(e){}}
+}
+
+// ── Speed meter ───────────────────────────────────────────────────
+function startSpeed(){
+  lastB=0;lastT=Date.now();
+  speedTmr=setInterval(()=>{
+    const now=Date.now(),dt=(now-lastT)/1000;
+    if(dt<=0){lastT=now;return;}
+    const bps=(rTotal-lastB)/dt; lastB=rTotal;lastT=now;
+    $('speedVal').textContent=fmtSpd(bps);
+    if(bps>0&&rTotalSz>rTotal) $('etaVal').textContent=fmtTime((rTotalSz-rTotal)/bps);
+  },1000);
+}
+function stopSpeed(){if(speedTmr){clearInterval(speedTmr);speedTmr=null;}}
+
+// ── Chat helpers ──────────────────────────────────────────────────
+function appendChat(feedId, msg, who, isMe) {
+  const feed=$(feedId); if(!feed) return;
+  const isURL = /^https?:\/\/\S+/.test(msg);
+  const div=document.createElement('div');
+  div.className=`bubble${isMe?' me':''}`;
+  div.innerHTML=`<div class="who">${esc(who)}</div>
+    <div class="txt">${esc(msg)}</div>
+    ${isURL?`<div class="url-actions">
+      <button class="btn ghost sm" onclick="window.open('${esc(msg)}','_blank')">🔗 Open</button>
+      <button class="btn ghost sm" onclick="navigator.clipboard?.writeText('${esc(msg)}');toast('Copied!')">📋 Copy</button>
+    </div>`:''}
+    <div class="ts">${new Date().toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'})}</div>`;
+  feed.appendChild(div);
+  feed.scrollTop=feed.scrollHeight;
+}
+
+// ── Misc helpers ──────────────────────────────────────────────────
+function closeAllPeers(){
+  for(const sid in peers){peers[sid].cancelled=true;try{peers[sid].pc.close();}catch(e){}}
+  peers={};peerNum=0;
+}
+function resetAll(){
+  selFiles=[];selFiles2=[];roomCode=null;
+  rBufs={};rTotal=0;rTotalSz=0;rPendHdr=null;senderSid=null;pendingReqId=null;
+  window._recvDC=null;
+  stopSpeed();stopScanner();
+  try{$('fileList').innerHTML='';$('fileList2').innerHTML='';}catch(e){}
+  try{$('sendFeed').innerHTML='';$('recvFeed').innerHTML='';}catch(e){}
+  try{$('userStrip').innerHTML='';$('connCount').textContent='0';}catch(e){}
+  try{show('connEmpty');}catch(e){}
+  try{syncOtp('');$('otpReal').value='';}catch(e){}
+  try{$('btnJoin').disabled=true;$('btnJoin').textContent='Connect to Sender →';}catch(e){}
+  try{$('btnCreate').disabled=false;$('btnCreate').textContent='Create Room →';}catch(e){}
+}
+function setNotice(type,msg){
+  const cls={ok:'n-ok',err:'n-err',warn:'n-warn',info:'n-info'}[type]||'n-info';
+  const ic={ok:'✅',err:'❌',warn:'⚠️',info:'ℹ️'}[type]||'ℹ️';
+  const el=$('recvNotice'); if(!el) return;
+  el.className=`notice ${cls}`;
+  el.innerHTML=`<span>${ic}</span><span>${msg}</span>`;
+}
+function copyCode(){navigator.clipboard?.writeText(roomCode);toast('Code copied: '+roomCode);}
+function copyLink(){navigator.clipboard?.writeText(`${BASE}/?code=${roomCode}`);toast('Link copied!');}
+function toast(msg,type='ok'){
+  const area=$('toasts');
+  const el=document.createElement('div'); el.className='toast';
+  el.style.borderLeftColor=type==='err'?'var(--red)':type==='warn'?'var(--amber)':'var(--cyan)';
+  el.textContent=msg; area.appendChild(el);
+  setTimeout(()=>{el.style.cssText+=';opacity:0;transition:opacity .3s';setTimeout(()=>el.remove(),300);},3000);
+}
+function show(id){document.getElementById(id)?.classList.remove('hidden');}
+function hide(id){document.getElementById(id)?.classList.add('hidden');}
+function tog(id,addHidden){const el=document.getElementById(id);if(el)el.classList.toggle('hidden',addHidden);}
+function $(id){return document.getElementById(id);}
+function autoResize(el){el.style.height='auto';el.style.height=Math.min(el.scrollHeight,120)+'px';}
+
+// ── Formatters ────────────────────────────────────────────────────
+function fmtSz(b){if(b<1024)return b+' B';if(b<1048576)return(b/1024).toFixed(1)+' KB';if(b<1073741824)return(b/1048576).toFixed(1)+' MB';return(b/1073741824).toFixed(2)+' GB';}
+function fmtSpd(b){if(b<1024)return b.toFixed(0)+' B/s';if(b<1048576)return(b/1024).toFixed(1)+' KB/s';return(b/1048576).toFixed(1)+' MB/s';}
+function fmtTime(s){if(s<60)return s.toFixed(0)+'s';if(s<3600)return Math.floor(s/60)+'m '+Math.floor(s%60)+'s';return Math.floor(s/3600)+'h '+Math.floor((s%3600)/60)+'m';}
+function esc(s){return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
+function fIcon(n){const e=(n||'').split('.').pop().toLowerCase();return({pdf:'📄',doc:'📝',docx:'📝',txt:'📝',jpg:'🖼',jpeg:'🖼',png:'🖼',gif:'🖼',webp:'🖼',mp4:'🎬',mkv:'🎬',avi:'🎬',mov:'🎬',mp3:'🎵',wav:'🎵',flac:'🎵',m4a:'🎵',zip:'📦',rar:'📦','7z':'📦',apk:'📱',exe:'⚙',py:'🐍',js:'📜',html:'🌐',xlsx:'📊',csv:'📊',pptx:'📊',iso:'💿'}[e]||'📁');}
+</script>
+</body>
+</html>
